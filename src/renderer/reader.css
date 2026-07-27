@@ -326,9 +326,11 @@ body.dragging { user-select: none; cursor: col-resize; }
 /* 목차를 열어둔 채 읽으므로 방금 고른 항목을 표시해 둔다 */
 /* 목차는 레벨별 들여쓰기와 크기 차이 없이 전부 왼쪽에 붙인다. 위계는 굵기가
    진다 — 장·절은 bold, 그 아래 섹션은 보통 굵기에 옅은 색. */
+/* 파이프라인이 제목을 두 단계로 눌러 준다 — h1 은 장을 여는 제목, h2 는 나머지.
+   장만 bold 로 세우고 나머지는 보통 굵기에 옅은 색으로 물러난다. */
 .toc a[data-level] { padding-left: .4rem; font-size: 1em; }
-.toc a[data-level="1"], .toc a[data-level="2"] { color: var(--ink); font-weight: 700; }
-.toc a[data-level="3"] { color: var(--ink-soft); font-weight: 400; }
+.toc a[data-level="1"] { color: var(--ink); font-weight: 700; }
+.toc a[data-level="2"], .toc a[data-level="3"] { color: var(--ink-soft); font-weight: 400; }
 .toc a[aria-current] { background: var(--mark); color: var(--ink); }
 
 /* 목차가 열린 만큼 본문 폭을 줄인다. 좁은 화면에서는 밀어낼 자리가 없으므로

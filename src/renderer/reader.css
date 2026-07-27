@@ -31,6 +31,7 @@
 
   /* 통일 조판 */
   --leading: 1.78;
+  --para-gap: 0em;           /* 단락 사이 여백 — 블록 쌍이 한 행이라 행 간격이다 */
   --indent: 1em;
   --radius: 3px;
   --dur: .15s;
@@ -187,6 +188,10 @@ body {
   letter-spacing: normal;
   text-transform: none;
 }
+/* 본문 단락 사이 여백. 제목 앞 여백은 위계를 만드는 값이라 건드리지 않는다. */
+.row-p .cell, .row-quote .cell,
+.row-footnote .cell, .row-figcaption .cell { padding-top: var(--para-gap); }
+
 .row-h1 .cell { padding-top: 3.2rem; padding-bottom: 1.1rem; }
 .row-h2 .cell { padding-top: 2.2rem; padding-bottom: .7rem; }
 .row-h3 .cell { padding-top: 1.4rem; padding-bottom: .4rem; }
@@ -313,10 +318,12 @@ body.dragging { user-select: none; cursor: col-resize; }
 }
 .toc a:hover { background: var(--bg); }
 /* 목차를 열어둔 채 읽으므로 방금 고른 항목을 표시해 둔다 */
-/* 목차도 본문과 같다 — 레벨별 들여쓰기와 크기 차이를 없애고 전부 왼쪽에 붙인다. */
-.toc a[data-level] { padding-left: .4rem; color: var(--ink); font-size: 1em; font-weight: 700; }
-/* 방금 고른 항목 — 전부 bold 라 굵기로는 구분되지 않으므로 배경으로 표시한다 */
-.toc a[aria-current] { background: var(--mark); }
+/* 목차는 레벨별 들여쓰기와 크기 차이 없이 전부 왼쪽에 붙인다. 위계는 굵기가
+   진다 — 장·절은 bold, 그 아래 섹션은 보통 굵기에 옅은 색. */
+.toc a[data-level] { padding-left: .4rem; font-size: 1em; }
+.toc a[data-level="1"], .toc a[data-level="2"] { color: var(--ink); font-weight: 700; }
+.toc a[data-level="3"] { color: var(--ink-soft); font-weight: 400; }
+.toc a[aria-current] { background: var(--mark); color: var(--ink); }
 
 /* 목차가 열린 만큼 본문 폭을 줄인다. 좁은 화면에서는 밀어낼 자리가 없으므로
    예전처럼 겹쳐 뜬다. */

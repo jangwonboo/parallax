@@ -95,15 +95,18 @@ function estimate(b) {
    대개 한두 줄이라 줄 수도 거의 안 변한다. 크기에만 비례시킨다. */
 function recomputeEstimates() {
   const cs = getComputedStyle(root);
-  const size = parseFloat(cs.getPropertyValue("--size")) || BASE.size;
-  const leading = parseFloat(cs.getPropertyValue("--leading")) || BASE.leading;
   const cell = doc.querySelector(".cell.src");
+  /* --size 는 pt 로 들어온다. 실측 fontSize 를 읽으면 단위와 무관하게 px 이다. */
+  const size = cell ? parseFloat(getComputedStyle(cell).fontSize) || BASE.size : BASE.size;
+  const leading = parseFloat(cs.getPropertyValue("--leading")) || BASE.leading;
   const colw = cell ? cell.getBoundingClientRect().width : BASE.colw;
+  /* 단락 여백은 줄 수와 무관하게 블록마다 한 번 더해진다 */
+  const gap = (parseFloat(cs.getPropertyValue("--para-gap")) || 0) * size;
 
   const body = (size / BASE.size) ** 2 * (leading / BASE.leading) * (BASE.colw / Math.max(160, colw));
   const head = size / BASE.size;
   for (const k of Object.keys(BASE_EST)) {
-    estimates[k] = Math.round(BASE_EST[k] * (HEAD.has(k) ? head : body));
+    estimates[k] = Math.round(BASE_EST[k] * (HEAD.has(k) ? head : body) + (HEAD.has(k) ? 0 : gap));
   }
 }
 
@@ -392,6 +395,33 @@ function wireRange(id, outId, apply, key, dflt) {
   run();
   r.addEventListener("input", () => { run(); saveSetting(key, Number(r.value)); });
 }
+
+/* 조판 축은 연속값이 아니라 정해진 단계로 고른다. 저장하는 값은 단계 번호라
+   단계표를 바꿔도 예전 설정이 엉뚱한 크기로 되살아나지 않는다. */
+function wireSteps(id, outId, steps, apply, key, dflt) {
+  const r = document.getElementById(id), o = document.getElementById(outId);
+  r.min = "0"; r.max = String(steps.length - 1); r.step = "1";
+  let i = Number(settings[key]);
+  if (!Number.isInteger(i) || i < 0 || i >= steps.length) i = dflt;
+  r.value = String(i);
+  const run = () => { apply(steps[Number(r.value)], o); invalidateHeights(); };
+  run();
+  r.addEventListener("input", () => { run(); saveSetting(key, Number(r.value)); });
+}
+
+/** 글꼴 크기 5단계. pt 로 정한다 — 종이 조판의 단위이고 요구도 pt 였다. */
+const SIZE_STEPS = [
+  { label: "xs", pt: 10 }, { label: "s", pt: 14 }, { label: "m", pt: 18 },
+  { label: "l", pt: 22 }, { label: "xl", pt: 24 },
+];
+/** 줄간격 3단계. 요구한 범위 1.0~3.0 의 양 끝과 가운데. */
+const LEAD_STEPS = [
+  { label: "l", v: 1.0 }, { label: "m", v: 2.0 }, { label: "h", v: 3.0 },
+];
+/** 단락 간격 3단계. l 은 여백 없음 — 첫 줄 들여쓰기로만 단락을 나누는 인쇄 조판. */
+const PARA_STEPS = [
+  { label: "l", v: 0 }, { label: "m", v: 0.7 }, { label: "h", v: 1.4 },
+];
 
 /* 툴바 높이는 CSS 의 --bar-h 로 고정한다 — 예전에는 실측해 덮어썼지만, 글꼴
    크기를 움직일 때마다 툴바가 따라 커져 본문이 위아래로 밀렸다. */
@@ -689,15 +719,21 @@ addEventListener("resize", () => invalidateHeights());
 
   wireFace("faceSrc", FACES_SRC, "--face-src", "--weight-src", "faceSrc");
   wireFace("faceKo", FACES_KO, "--face-ko", "--weight-ko", "faceKo");
-  wireRange("size", "sizeOut", (v, o) => {
-    setVar("--size", v + "px");
-    setVar("--ui-size", Math.max(11, Math.min(19, Math.round(v * 0.8))) + "px");
-    o.textContent = v + "px";
-  }, "size", 16);
-  wireRange("lead", "leadOut", (v, o) => {
-    setVar("--leading", String(v));
-    o.textContent = v.toFixed(2);
-  }, "leading", 1.78);
+  wireSteps("size", "sizeOut", SIZE_STEPS, (s, o) => {
+    setVar("--size", s.pt + "pt");
+    /* UI 글자는 본문을 따라가되 11~19px 로 묶는다. 1pt = 4/3 px. */
+    const px = (s.pt * 4) / 3;
+    setVar("--ui-size", Math.max(11, Math.min(19, Math.round(px * 0.8))) + "px");
+    o.textContent = `${s.label} · ${s.pt}pt`;
+  }, "sizeStep", 2);
+  wireSteps("lead", "leadOut", LEAD_STEPS, (s, o) => {
+    setVar("--leading", String(s.v));
+    o.textContent = `${s.label} · ${s.v.toFixed(1)}`;
+  }, "leadStep", 1);
+  wireSteps("para", "paraOut", PARA_STEPS, (s, o) => {
+    setVar("--para-gap", s.v + "em");
+    o.textContent = `${s.label} · ${s.v.toFixed(1)}em`;
+  }, "paraStep", 0);
   wireRange("width", "widthOut", (v, o) => {
     setVar("--maxw", v + "%");
     o.textContent = v + "%";

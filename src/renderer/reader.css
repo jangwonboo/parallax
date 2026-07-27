@@ -20,7 +20,9 @@
   --face-ko: "SUIT Variable", -apple-system, sans-serif;
   --weight-ko: 400;          /* 400이 없는 서체가 있어 서체별로 정해진다 */
   --size: 16px;              /* 좌우 공통 */
-  --ui-size: 13px;           /* 툴바·목차·사전 — 본문 크기를 따라 움직인다 */
+  /* 툴바·목차·사전 — 윈도우 기본 UI 크기(Segoe UI 9pt = 96dpi 에서 12px)로
+     고정한다. 본문을 따라 움직이면 본문을 키울 때마다 창 전체가 요동친다. */
+  --ui-size: 12px;
   --bar-h: 3.7rem;           /* 툴바 높이 — 고정. 글꼴 크기를 바꿔도 움직이지 않는다 */
   --maxw: 100%;              /* 본문 전체 폭 — 기본은 창에 꽉 채운다 */
   --toc-w: 23rem;            /* 목차가 열리면 본문이 이만큼 물러난다 */
@@ -31,7 +33,7 @@
 
   /* 통일 조판 */
   --leading: 1.78;
-  --para-gap: 0em;           /* 단락 사이 여백 — 블록 쌍이 한 행이라 행 간격이다 */
+  --para-k: 0.5;             /* 단락 사이 여백 = 줄 높이의 이 배수 */
   --indent: 1em;
   --radius: 3px;
   --dur: .15s;
@@ -188,9 +190,13 @@ body {
   letter-spacing: normal;
   text-transform: none;
 }
-/* 본문 단락 사이 여백. 제목 앞 여백은 위계를 만드는 값이라 건드리지 않는다. */
+/* 본문 단락 사이 여백 = 줄 높이 × --para-k. 줄 높이가 크기 × 줄간격이므로
+   여백은 둘 모두에 비례하고, 좌우 대역의 행이 같은 그리드에 남는다.
+   제목 앞 여백은 위계를 만드는 값이라 건드리지 않는다. */
 .row-p .cell, .row-quote .cell,
-.row-footnote .cell, .row-figcaption .cell { padding-top: var(--para-gap); }
+.row-footnote .cell, .row-figcaption .cell {
+  padding-top: calc(var(--leading) * var(--para-k) * 1em);
+}
 
 .row-h1 .cell { padding-top: 3.2rem; padding-bottom: 1.1rem; }
 .row-h2 .cell { padding-top: 2.2rem; padding-bottom: .7rem; }

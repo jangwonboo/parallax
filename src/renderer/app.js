@@ -100,8 +100,8 @@ function recomputeEstimates() {
   const size = cell ? parseFloat(getComputedStyle(cell).fontSize) || BASE.size : BASE.size;
   const leading = parseFloat(cs.getPropertyValue("--leading")) || BASE.leading;
   const colw = cell ? cell.getBoundingClientRect().width : BASE.colw;
-  /* 단락 여백은 줄 수와 무관하게 블록마다 한 번 더해진다 */
-  const gap = (parseFloat(cs.getPropertyValue("--para-gap")) || 0) * size;
+  /* 단락 여백은 줄 수와 무관하게 블록마다 한 번 더해진다. 줄 높이의 배수다. */
+  const gap = (parseFloat(cs.getPropertyValue("--para-k")) || 0) * leading * size;
 
   const body = (size / BASE.size) ** 2 * (leading / BASE.leading) * (BASE.colw / Math.max(160, colw));
   const head = size / BASE.size;
@@ -409,18 +409,17 @@ function wireSteps(id, outId, steps, apply, key, dflt) {
   r.addEventListener("input", () => { run(); saveSetting(key, Number(r.value)); });
 }
 
-/** 글꼴 크기 5단계. pt 로 정한다 — 종이 조판의 단위이고 요구도 pt 였다. */
-const SIZE_STEPS = [
-  { label: "xs", pt: 10 }, { label: "s", pt: 14 }, { label: "m", pt: 18 },
-  { label: "l", pt: 22 }, { label: "xl", pt: 24 },
-];
-/** 줄간격 3단계. 요구한 범위 1.0~3.0 의 양 끝과 가운데. */
-const LEAD_STEPS = [
-  { label: "l", v: 1.0 }, { label: "m", v: 2.0 }, { label: "h", v: 3.0 },
-];
-/** 단락 간격 3단계. l 은 여백 없음 — 첫 줄 들여쓰기로만 단락을 나누는 인쇄 조판. */
+/** 줄간격 — 글자 크기에 대한 배수라 크기를 바꾸면 저절로 따라간다. */
+const LEAD_STEPS = [1.0, 1.2, 1.5, 1.8, 2.0];
+
+/** 단락 간격 — 줄 하나의 높이(= 크기 × 줄간격)에 대한 배수.
+ *
+ * em(글자 크기)으로 잡으면 줄간격을 넓혔을 때 단락 사이가 상대적으로 좁아 보여
+ * 단락 경계가 흐려진다. 줄 높이의 배수로 잡으면 크기와 줄간격 양쪽에 함께
+ * 비례하고, 여백이 줄 높이의 정수배라 좌우 대역의 행이 계속 같은 그리드에
+ * 놓인다 — 0 은 여백 없음, 0.5 는 반 줄, 1 은 빈 줄 하나다. */
 const PARA_STEPS = [
-  { label: "l", v: 0 }, { label: "m", v: 0.7 }, { label: "h", v: 1.4 },
+  { label: "없음", k: 0 }, { label: "반 줄", k: 0.5 }, { label: "한 줄", k: 1 },
 ];
 
 /* 툴바 높이는 CSS 의 --bar-h 로 고정한다 — 예전에는 실측해 덮어썼지만, 글꼴
@@ -719,21 +718,22 @@ addEventListener("resize", () => invalidateHeights());
 
   wireFace("faceSrc", FACES_SRC, "--face-src", "--weight-src", "faceSrc");
   wireFace("faceKo", FACES_KO, "--face-ko", "--weight-ko", "faceKo");
-  wireSteps("size", "sizeOut", SIZE_STEPS, (s, o) => {
-    setVar("--size", s.pt + "pt");
-    /* UI 글자는 본문을 따라가되 11~19px 로 묶는다. 1pt = 4/3 px. */
-    const px = (s.pt * 4) / 3;
-    setVar("--ui-size", Math.max(11, Math.min(19, Math.round(px * 0.8))) + "px");
-    o.textContent = `${s.label} · ${s.pt}pt`;
-  }, "sizeStep", 2);
-  wireSteps("lead", "leadOut", LEAD_STEPS, (s, o) => {
-    setVar("--leading", String(s.v));
-    o.textContent = `${s.label} · ${s.v.toFixed(1)}`;
-  }, "leadStep", 1);
+  /* 툴바 글자 크기는 본문을 따라가지 않는다 — reader.css 의 --ui-size 고정값. */
+  wireRange("size", "sizeOut", (v, o) => {
+    setVar("--size", v + "pt");
+    o.textContent = v + "pt";
+  }, "sizePt", 18);
+  wireSteps("lead", "leadOut", LEAD_STEPS, (v, o) => {
+    setVar("--leading", String(v));
+    o.textContent = v.toFixed(1);
+  }, "leadStep", 3);
   wireSteps("para", "paraOut", PARA_STEPS, (s, o) => {
-    setVar("--para-gap", s.v + "em");
-    o.textContent = `${s.label} · ${s.v.toFixed(1)}em`;
-  }, "paraStep", 0);
+    setVar("--para-k", String(s.k));
+    /* 단락을 나누는 장치는 하나면 된다. 여백을 주면 첫 줄 들여쓰기는 뺀다 —
+       둘을 겹치면 단락 머리가 두 번 표시돼 산만하다. */
+    setVar("--indent", s.k > 0 ? "0" : "1em");
+    o.textContent = s.label;
+  }, "paraStep", 1);
   wireRange("width", "widthOut", (v, o) => {
     setVar("--maxw", v + "%");
     o.textContent = v + "%";

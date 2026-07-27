@@ -78,7 +78,11 @@ export const DESLOP_SYSTEM = `당신은 한국어 번역문에서 번역투와 A
 - 인용문(원저자의 문체), 대사(인물의 말투)
 판단이 서지 않으면 그대로 두어라.`;
 
-const LINE = /^\[(b\d{4,}[a-p]?)\]\s?(.*)$/;
+/* 접미사는 하나로 끝나지 않는다. pagecheck 가 한 페이지에 여러 블록을 끼워 넣으면
+   직전 ID 에 다시 글자를 붙여 b0052a → b0052aa → b0052aaa 로 자란다. `[a-p]?` 로는
+   두 글자 이상인 ID 가 매칭되지 않아 그 블록의 번역이 조용히 버려졌다 — 재번역을
+   시켜도 영영 채워지지 않는다. */
+const LINE = /^\[(b\d{4,}[a-p]*)\]\s?(.*)$/;
 
 export function toWire(blocks: { id: string; text: string }[]): string {
   return blocks.map((b) => `[${b.id}] ${b.text.replace(/\s+/g, " ").trim()}`).join("\n");

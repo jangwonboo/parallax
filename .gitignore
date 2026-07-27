@@ -16,3 +16,8 @@ anthropic.key
 # 파이프라인 중간 산출물
 work/
 out/
+
+# 스킬을 푼 사본 — 정본은 pdf-ko-translate.zip
+pdf-ko-translate/
+blocks.txt
+

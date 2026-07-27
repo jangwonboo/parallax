@@ -1,6 +1,7 @@
-import { readFileSync, existsSync } from "node:fs";
-import { spawn } from "node:child_process";
-import { basename, extname } from "node:path";
+import { readFileSync, existsSync, rmSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { basename, extname, join } from "node:path";
+import { homedir, tmpdir } from "node:os";
 import * as T from "../../shared/types";
 
 export interface RawBlock {
@@ -90,16 +91,46 @@ export function importText(path: string): { title: string; blocks: RawBlock[] } 
  * 스킬 경로를 설정에서 받거나 표준 위치에서 찾는다.
  */
 export function findSidecar(configured?: string | null): string | null {
+  /* homedir() 를 쓴다. Windows 에는 HOME 이 없어 (USERPROFILE 을 쓴다)
+     `undefined/.claude/skills/…` 를 뒤지고 있었다. */
+  const home = homedir();
   const cands = [
     configured,
     process.env.PARALLAX_SKILL_DIR,
-    `${process.env.HOME}/.claude/skills/pdf-ko-translate`,
-    `${process.cwd()}/../pdf-ko-translate`,
+    join(home, ".claude", "skills", "pdf-ko-translate"),
+    join(process.cwd(), "pdf-ko-translate"),
+    join(process.cwd(), "..", "pdf-ko-translate"),
   ].filter(Boolean) as string[];
   for (const c of cands) {
-    if (existsSync(`${c}/scripts/extract.py`)) return `${c}/scripts/extract.py`;
+    const s = join(c, "scripts", "extract.py");
+    if (existsSync(s)) return s;
   }
   return null;
+}
+
+/**
+ * 실제로 돌아가는 파이썬을 찾는다.
+ *
+ * `python3` 를 그냥 부르면 안 된다. Windows 의 `python3.exe` 는 대개
+ * Microsoft Store 로 보내는 0바이트 재파싱 지점이라, 실행하면 파이썬이 아니라
+ * 스토어가 뜨고 추출은 알 수 없는 이유로 실패한다. 후보를 하나씩 실제로
+ * 실행해 보고 판별한다.
+ */
+let pythonCache: string | null | undefined;
+export function findPython(): string | null {
+  if (pythonCache !== undefined) return pythonCache;
+  const configured = process.env.PARALLAX_PYTHON;
+  const cands = configured
+    ? [configured]
+    : process.platform === "win32"
+      ? ["python", "py", "python3"]
+      : ["python3", "python"];
+  for (const c of cands) {
+    const r = spawnSync(c, ["-c", "import sys;print(sys.version_info[0])"],
+                        { encoding: "utf8", timeout: 5000, windowsHide: true });
+    if (r.status === 0 && String(r.stdout).trim() === "3") return (pythonCache = c);
+  }
+  return (pythonCache = null);
 }
 
 export function importPdf(
@@ -108,8 +139,14 @@ export function importPdf(
   onProgress: (p: T.ImportProgress) => void
 ): Promise<{ title: string; author: string; pages: number; blocks: RawBlock[] }> {
   return new Promise((resolve, reject) => {
-    const tmp = `${path}.parallax-extract.json`;
-    const py = process.env.PARALLAX_PYTHON || "python3";
+    /* 임시 산출물은 임시 폴더에 쓴다. 원본 옆에 쓰면 extract.py 가 같은 자리에
+       내는 blocks.txt 까지 사용자의 문서 폴더에 남는다. */
+    const tmp = join(tmpdir(), `parallax-extract-${Date.now()}.json`);
+    const py = findPython();
+    if (!py) {
+      return reject(new Error(
+        "파이썬 3을 찾지 못했습니다. 설치했다면 PARALLAX_PYTHON 에 실행 파일 경로를 지정하세요."));
+    }
     const proc = spawn(py, [script, path, "--out", tmp], { stdio: ["ignore", "pipe", "pipe"] });
 
     let err = "";
@@ -121,7 +158,7 @@ export function importPdf(
     proc.stderr.on("data", (d) => (err += d));
 
     proc.on("error", () =>
-      reject(new Error(`python3 를 실행할 수 없습니다. 설정에서 경로를 지정하세요.`))
+      reject(new Error(`${py} 를 실행할 수 없습니다. PARALLAX_PYTHON 으로 경로를 지정하세요.`))
     );
     proc.on("close", (code) => {
       if (code !== 0) return reject(new Error(err.trim() || `추출 실패 (exit ${code})`));
@@ -141,6 +178,10 @@ export function importPdf(
         });
       } catch (e: any) {
         reject(new Error(`추출 결과를 읽지 못했습니다: ${e.message}`));
+      } finally {
+        for (const f of [tmp, join(tmpdir(), "blocks.txt")]) {
+          try { rmSync(f, { force: true }); } catch {}
+        }
       }
     });
   });

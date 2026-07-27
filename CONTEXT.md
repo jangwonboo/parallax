@@ -34,6 +34,9 @@
 - 목차·책 제목을 **원문 고정**(`db.ts`의 `coalesce(ko, src)` → `src`, `app.js`의 `title_ko || title` → `title`).
 - 창 제목을 항상 `Parallax`로. `app.setName` + Windows `setAppUserModelId`.
 - 가상 스크롤 높이 추정치를 조판에 연동(아래 참조).
+- **PDF 열기가 Windows에서 처음으로 동작한다.** `importers/index.ts`가 `process.env.HOME`(Windows에는 없다)을 보던 것을 `os.homedir()`로, 파이썬을 `"python3"`로 고정해 부르던 것을 `findPython()`으로 바꿨다. Windows의 `python3.exe`는 대개 Microsoft Store로 보내는 0바이트 스텁이라, 후보를 실제로 실행해 보고 고른다. 임시 산출물도 원본 옆이 아니라 임시 폴더에 쓰고 지운다(예전에는 `blocks.txt`와 `*.parallax-extract.json`이 문서 폴더에 남았다).
+
+  스킬이 있어야 동작한다. `findSidecar()`가 보는 곳은 `PARALLAX_SKILL_DIR` → `~/.claude/skills/pdf-ko-translate` → `<cwd>/pdf-ko-translate` → `<cwd>/../pdf-ko-translate` 순이다. 지금은 저장소 안에 `pdf-ko-translate/`로 풀어 뒀다(정본은 zip이고 이 사본은 `.gitignore`에 있다).
 
 ### 가상 스크롤 높이 추정 — 알아둘 것
 
@@ -79,41 +82,23 @@
 
 **`python3`는 Store 스텁.** 이 PC의 `python3.exe`는 0바이트 재파싱 지점(Microsoft Store 별칭)이다. 진짜 파이썬은 `C:\Python314\python.exe`이고 `python`으로 잡힌다. 스킬의 `run.sh`는 `python3`를 부른다.
 
-**`the_meaning_of_your_life.pdf`는 PDF가 아니다.** 매직 바이트가 `SCDSA004` — 전자책 DRM 컨테이너다. PyMuPDF가 열지 못한다. 쓸 수 있는 파일은 `the_meaning_of_your_life_compressed.pdf`(38.6MB, 진짜 `%PDF-1.5`)다.
+**DRM 컨테이너를 PDF로 착각하지 말 것.** 원래 있던 `the_meaning_of_your_life.pdf`(76MB)는 매직 바이트가 `%PDF-`가 아니라 `SCDSA004`인 전자책 DRM 컨테이너였다. PyMuPDF가 열지 못한다. 2026-07-27에 삭제했고, 쓸 수 있는 파일은 `the_meaning_of_your_life_compressed.pdf`(38.6MB, 진짜 `%PDF-1.5`)다. 새 원본을 받으면 먼저 앞 8바이트를 확인하라.
 
 ---
 
-## 문서 파일 두 개가 있다
+## 남아 있는 데이터 파일
 
-| 파일 | 블록 | 번역 | 구조 |
-|---|---|---|---|
-| `the_meaning_of_your_life.parallax` | 1,141 | **943** | 낡음 — 머리글이 제목 37개로 들어가 있고 단락이 페이지마다 끊김 |
-| `the_meaning_of_your_life_v2.parallax` | 956 | 22 | 고침 — 비전 전량 판독, 머리글 제거, 단락 병합 |
+작업 파일은 **`the_meaning_of_your_life_v2.parallax` 하나**다(956블록). 2026-07-27에 정리하면서 구 추출본(`the_meaning_of_your_life.parallax`, 1,141블록·번역 943개)과 `README.parallax` 시험 산출물, DRM PDF, 스킬 백업 zip을 지웠다.
 
-**둘은 블록 ID가 달라 번역을 옮길 수 없다.** v2를 전량 번역하면 $7 안팎. 어느 쪽으로 갈지는 아직 결정하지 않았다.
+구 추출본에 번역이 943개 있었지만 블록 ID가 달라 v2로 옮길 수 없었다. v2 전량 번역은 실측 단가($0.002/블록) 기준 $2 안팎이다.
+
+`.parallax`와 `.pdf`는 `.gitignore`에 있다 — 원문이 전량 들어가고, `.parallax`는 번역이 진행될 때마다 통째로 바뀌는 SQLite라 히스토리에 넣으면 급격히 커진다.
 
 ---
 
 ## 열려 있는 것
 
-**앱 — Windows에서 PDF를 열 수 없다.** `src/main/importers/index.ts`:
-- 96행 `process.env.HOME` — Windows에서 비어 있다. `os.homedir()`를 써야 한다.
-- 112행 기본값 `"python3"` — 위의 Store 스텁을 부른다.
-이 두 줄은 **아직 고치지 않았다.** 고쳐도 스킬이 `~/.claude/skills/`에 설치돼 있어야 동작한다(현재 미설치).
-
-**저장소가 git이 아니다.** 한 세션 분량의 변경이 쌓였는데 되돌릴 지점이 없다. `git init` 시 `.gitignore`에 다음을 반드시 추가할 것 — 지금은 `node_modules/`, `dist/`, `*.log`뿐이다:
-
-```
-anthropic.key
-*.parallax
-*.parallax-shm
-*.parallax-wal
-*.pdf
-```
-
-`anthropic.key`(실제 키)와 원문 전량이 들어간 `.parallax`가 그대로 커밋된다.
-
-**나머지**
+- **앱이 부르는 것은 `extract.py`뿐이다.** 그래서 앱으로 PDF를 열면 표지 조각이 목차에 들어가고(`—`, `T`, `M`) 텍스트 레이어의 OCR 오류도 그대로다. `pagecheck --trust vision`은 CLI 단계라, 품질이 필요하면 파이프라인을 거쳐 `.parallax`를 만들어 열어야 한다. 앱에 pagecheck를 붙이는 것이 `spec.md` §10의 E5다.
 - 앱 툴바가 1400px에서 이미 가로 스크롤이 생긴다. 컨트롤이 더 늘면 접어 넣는 메뉴가 필요하다.
 - 내보내기(`exporter.ts`, `index.ts:209`)는 아직 `title_ko`를 우선한다. 리더 화면만 원문 고정했다.
 - `spec.md` §10의 E5(pagecheck 통합, 용어집 편집기)·E6(`.parallax` 내보내기, 문서 라이브러리) 미착수.

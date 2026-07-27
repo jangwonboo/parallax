@@ -1,0 +1,18 @@
+node_modules/
+dist/
+*.log
+
+# 비밀
+anthropic.key
+*.key
+
+# 작업 문서와 원본 — 원문이 전량 들어 있고 크다.
+# .parallax 는 번역이 진행될 때마다 통째로 바뀌는 SQLite 라 히스토리에 넣으면 급격히 커진다.
+*.parallax
+*.parallax-shm
+*.parallax-wal
+*.pdf
+
+# 파이프라인 중간 산출물
+work/
+out/

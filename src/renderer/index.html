@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src 'self' https://cdn.jsdelivr.net https://fonts.gstatic.com; img-src 'self' data:; script-src 'self'; connect-src 'none'">
+<title>Parallax</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="reader.css">
+</head>
+<body>
+
+<div class="prog" id="prog"></div>
+
+<header class="bar">
+  <button id="tocBtn" aria-expanded="false">목차</button>
+
+  <label class="ctl"><span>영문 글꼴</span>
+    <select id="faceSrc" aria-label="영문 글꼴"></select></label>
+  <label class="ctl"><span>한글 글꼴</span>
+    <select id="faceKo" aria-label="한글 글꼴"></select></label>
+  <label class="ctl"><span>글꼴 크기</span>
+    <input type="range" id="size" min="12" max="26" step="1" aria-label="글꼴 크기">
+    <output id="sizeOut"></output></label>
+  <label class="ctl"><span>줄간격</span>
+    <input type="range" id="lead" min="1.2" max="2.4" step="0.02" aria-label="줄간격">
+    <output id="leadOut"></output></label>
+  <label class="ctl"><span>본문 폭</span>
+    <input type="range" id="width" min="50" max="100" step="5" aria-label="본문 폭">
+    <output id="widthOut"></output></label>
+
+  <label class="ctl"><span>번역</span>
+    <select id="modeSel" aria-label="번역 범위">
+      <option value="viewport">따라가기</option>
+      <option value="chapter">현재 장</option>
+      <option value="all">전체</option>
+    </select></label>
+
+  <button id="evenBtn" title="좌우 폭을 절반으로">균등</button>
+  <select id="themeSel" aria-label="테마">
+    <option value="light">밝게</option>
+    <option value="night">어둡게</option>
+  </select>
+</header>
+
+<nav class="toc" id="toc" data-open="false" aria-label="목차"></nav>
+
+<main class="doc linked" id="doc">
+  <div class="welcome" id="welcome">
+    <h2>Parallax</h2>
+    <p>영문 문서를 왼쪽에, 한국어 번역을 오른쪽에 나란히 놓고 읽습니다.
+       스크롤하는 만큼만 번역하므로 책 한 권을 다 태우지 않아도 됩니다.</p>
+    <button id="openBtn2">문서 열기</button>
+    <p class="kinds">.parallax · .pdf · .md · .txt</p>
+  </div>
+  <button class="handle" id="handle" hidden aria-label="좌우 폭 조절"
+          role="separator" aria-orientation="vertical"
+          aria-valuemin="20" aria-valuemax="80" aria-valuenow="50"></button>
+</main>
+
+<aside class="dict" id="dict" data-open="false" role="dialog" aria-label="사전">
+  <div class="head">
+    <span class="word" id="dWord"></span>
+    <span class="ipa" id="dIpa"></span>
+    <button id="dClose" aria-label="닫기">✕</button>
+  </div>
+  <div class="body">
+    <section><h4>영한</h4><div id="dKo" class="ko-gloss spin">…</div></section>
+    <section><h4>영영</h4><div id="dEn" class="spin">…</div></section>
+  </div>
+  <div class="links" id="dLinks"></div>
+</aside>
+
+<dialog class="keydlg" id="keyDlg" aria-label="Anthropic API 키">
+  <form method="dialog">
+    <h3>Anthropic API 키</h3>
+    <p class="state" id="keyState"></p>
+    <input type="password" id="keyInput" placeholder="sk-ant-…" autocomplete="off"
+           spellcheck="false" aria-label="API 키">
+    <p class="hint">키는 OS 보안 저장소로 암호화되어 저장됩니다.
+       저장된 키는 다시 표시되지 않습니다.</p>
+    <p class="err" id="keyErr" hidden></p>
+    <menu>
+      <button type="button" id="keyClear" class="ghost">지우기</button>
+      <span class="sp"></span>
+      <button type="button" id="keyCancel" class="ghost">취소</button>
+      <button type="button" id="keySave">저장</button>
+    </menu>
+  </form>
+</dialog>
+
+<div class="status" id="status" hidden>
+  <span id="stMode"></span>
+  <span class="bar-track"><span class="bar-fill" id="stFill"></span></span>
+  <span id="stCount"></span>
+  <span id="stSpend"></span>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

@@ -360,9 +360,10 @@ body.dragging { user-select: none; cursor: col-resize; }
   transform: translateX(-100%); transition: transform var(--dur) ease-out;
   overflow-y: auto; padding: .8rem 1.1rem 3rem;
   /* 항목이 본문 제목(원문)이라 본문 조판을 따른다 — 원문 서체·크기·줄간격.
-     UI 크기 고정의 예외다(:root 의 --ui-size 주석 참조). */
+     UI 크기 고정의 예외다(:root 의 --ui-size 주석 참조). 크기는 본문의
+     0.88배 — 같은 크기면 bold 항목이 본문보다 커 보인다(보조 패널 관례). */
   font-family: var(--face-src); font-weight: var(--weight-src);
-  font-size: var(--size); line-height: var(--leading);
+  font-size: calc(var(--size) * .88); line-height: var(--leading);
 }
 .toc[data-open="true"] { transform: none; }
 .toc a {

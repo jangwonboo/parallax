@@ -434,6 +434,28 @@ function setToc(open) {
 }
 tocBtn.onclick = () => setToc(toc.dataset.open !== "true");
 
+/* 조판 패널 — 바에 있던 컨트롤 일곱 개가 여기로 내려왔다. 열려 있는 동안에도
+   본문은 그대로 있으므로 슬라이더를 움직이며 결과를 볼 수 있다. */
+const typePanel = document.getElementById("typePanel");
+const typeBtn = document.getElementById("typeBtn");
+function setTypePanel(open) {
+  typePanel.dataset.open = open ? "true" : "false";
+  typeBtn.setAttribute("aria-expanded", String(open));
+}
+typeBtn.onclick = (e) => {
+  e.stopPropagation();
+  setTypePanel(typePanel.dataset.open !== "true");
+};
+/* 패널 밖을 누르면 닫는다. 사전 창을 띄우는 본문 선택과 겹치지 않도록
+   패널·버튼 안쪽 클릭만 통과시킨다. */
+document.addEventListener("mousedown", (e) => {
+  if (typePanel.dataset.open !== "true") return;
+  if (typePanel.contains(e.target) || typeBtn.contains(e.target)) return;
+  setTypePanel(false);
+});
+/* Esc 는 아래쪽 전역 처리기(사전·목차)에서 함께 받는다 — 겹쳐 등록하면
+   한 번 눌렀을 때 셋이 동시에 닫힌다. */
+
 /* 넓은 화면에서 목차는 본문을 밀어낼 뿐 덮지 않는다 — 항목을 눌러도 열어둔 채로
    본문만 옮긴다. 겹쳐 뜨는 좁은 화면에서만 닫는다. */
 const tocPushes = matchMedia("(min-width: 900px)");
@@ -543,8 +565,13 @@ document.addEventListener("mouseup", (e) => {
   showDict(clean, rect);
 });
 
+/* Esc — 위에 떠 있는 것부터 하나씩 닫는다. 한 번에 다 닫으면 사전을 닫으려다
+   목차까지 잃는다. */
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") { closeDict(); setToc(false); }
+  if (e.key !== "Escape") return;
+  if (dict.dataset.open === "true") return closeDict();
+  if (typePanel.dataset.open === "true") { setTypePanel(false); return typeBtn.focus(); }
+  setToc(false);
 });
 addEventListener("scroll", () => { if (dict.dataset.open === "true") closeDict(); }, { passive: true });
 
@@ -690,7 +717,30 @@ api.on("block:updated", async ({ ids }) => {
 });
 
 api.on("stats", renderStats);
+/* 여는 중 표시 — 페이지 검증은 쪽마다 모델을 부르므로 몇 분씩 간다. 어디까지
+   갔는지와 멈추는 버튼이 없으면 멈춘 것과 구분되지 않는다. */
+const importing = document.getElementById("importing");
+const impWhat = document.getElementById("impWhat");
+const impMsg = document.getElementById("impMsg");
+const IMPORT_STAGE = {
+  read: "여는 중", extract: "추출 중", pagecheck: "페이지 검증 중",
+  structure: "구조 정리 중", write: "저장 중",
+};
+document.getElementById("impCancel").onclick = () => {
+  impWhat.textContent = "멈추는 중";
+  api.doc.cancelImport();
+};
+
 api.on("import:progress", (p) => {
+  if (p.stage === "done" || p.stage === "error") {
+    importing.hidden = true;
+    return;
+  }
+  importing.hidden = false;
+  impWhat.textContent = IMPORT_STAGE[p.stage] || "여는 중";
+  impMsg.textContent =
+    p.stage === "pagecheck" && p.page && p.of ? `${p.page} / ${p.of}쪽` : p.message || "";
+
   if (p.stage === "extract" && p.message) {
     const w = document.getElementById("welcome");
     if (w) w.querySelector("p").textContent = p.message;

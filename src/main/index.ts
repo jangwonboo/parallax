@@ -7,7 +7,7 @@ import { Doc } from "./db";
 import { Scheduler } from "./translate/scheduler";
 import * as Imp from "./importers";
 import * as T from "../shared/types";
-import { renderHtml, renderMarkdown } from "./exporter";
+import { docTitle, renderHtml, renderMarkdown } from "./exporter";
 
 const DEV = process.argv.includes("--dev");
 let win: BrowserWindow | null = null;
@@ -110,6 +110,11 @@ function buildMenu() {
         { type: "separator" },
         { label: "Anthropic API 키…", accelerator: "CmdOrCtrl+K",
           click: () => emit("keys:prompt", keyStatus()) },
+        { label: "PDF 열 때 페이지 검증 묻기", type: "checkbox",
+          checked: readSettings().pagecheck !== "off",
+          click: (item) => {
+            writeSettings({ ...readSettings(), pagecheck: item.checked ? "ask" : "off" });
+          } },
         { type: "separator" },
         { label: "Markdown 내보내기", click: () => doExport("md") },
         { label: "HTML 내보내기", click: () => doExport("html") },
@@ -148,11 +153,68 @@ async function pickAndOpen() {
     ],
   });
   if (r.canceled || !r.filePaths[0]) return;
-  try {
-    await openPath(r.filePaths[0]);
-  } catch (e: any) {
-    dialog.showErrorBox("열 수 없습니다", e.message ?? String(e));
+  await openPath(r.filePaths[0]).catch(reportOpenError);
+}
+
+/** 사용자가 스스로 멈춘 것은 실패가 아니다 — 상자를 띄우지 않는다. */
+function reportOpenError(e: any) {
+  emit("import:progress", { stage: "error" });
+  if (e instanceof Imp.Cancelled) return;
+  dialog.showErrorBox("열 수 없습니다", e?.message ?? String(e));
+}
+
+/* 쪽당 대략적인 비전 호출 비용(claude-haiku, 150dpi). pagecheck.py 가 CLI 에서
+   찍는 것과 같은 어림수다 — 정확한 청구액이 아니라 자릿수를 보여 주는 값이다. */
+const VISION_USD_PER_PAGE = 0.0075;
+
+/**
+ * 추출한 PDF 를 페이지 검증까지 돌릴지 정한다.
+ *
+ * 추출이 끝난 **뒤에** 묻는다. 그래야 쪽수를 알고 비용을 실제 값으로 보여 줄 수
+ * 있고, 텍스트 레이어가 OCR 인지도 그때 알 수 있다. 묻지 않고 돌리는 일은
+ * 없다 — 쪽마다 돈이 나가는 작업이다.
+ */
+async function planPagecheck(
+  skill: string,
+  ex: Imp.Extraction
+): Promise<Imp.PagecheckOptions | null> {
+  if (readSettings().pagecheck === "off") return null;
+  if (!Imp.hasPagecheck(skill) || !ex.pages) return null;
+  const apiKey = readKey();
+  if (!apiKey) return null;   // 키가 없으면 물어봐야 할 것도 없다
+
+  /* 어느 쪽을 권할지는 알려 주되 고르는 것은 감추지 않는다. 두 모드가 하는 일이
+     다르고, 잘못 고르면 되돌릴 수 없다 — 재판독은 멀쩡한 원문의 고어 철자를
+     현대화하고 저자의 의도적 오기를 고쳐 버린다. */
+  const usd = (ex.pages * VISION_USD_PER_PAGE).toFixed(2);
+  const r = await dialog.showMessageBox(win!, {
+    type: "question",
+    buttons: ["건너뛰기", "구조만 대조", "전 쪽 재판독"],
+    defaultId: ex.ocrLayer ? 2 : 1,
+    cancelId: 0,
+    checkboxLabel: "다음부터 묻지 말고 건너뛰기",
+    message: "페이지 검증을 실행할까요?",
+    detail:
+      `${ex.pages}쪽 · 블록 ${ex.blocks}개 · 예상 비용 약 $${usd}\n\n` +
+      (ex.ocrLayer
+        ? "이 PDF 의 텍스트 레이어는 판독 산출물로 보입니다 — 글자 자체가 이미 추측이므로 " +
+          "「전 쪽 재판독」을 권합니다.\n\n"
+        : "이 PDF 의 텍스트 레이어는 문서가 가진 제 글자로 보입니다 — 「구조만 대조」를 " +
+          "권합니다.\n\n") +
+      "구조만 대조: 글자는 텍스트 레이어 그대로 두고 제목·순서·누락만 쪽 이미지로 고칩니다.\n" +
+      "전 쪽 재판독: 모든 쪽을 이미지에서 다시 받아씁니다. 표지 조각과 판독 오류를 " +
+      "걷어내지만, 판독 모델은 고어 철자를 현대화하고 저자의 의도적 오기를 고칩니다.\n\n" +
+      "건너뛰면 추출한 그대로 열립니다. 몇 분 걸리며 도중에 멈출 수 있습니다.",
+  });
+
+  /* 체크는 「묻지 않기」가 아니라 「묻지 말고 건너뛰기」다. 묻지 않기로 해 두고
+     매번 돈이 나가는 쪽이 기본값이 되면 안 된다. 메뉴에서 되돌릴 수 있다. */
+  if (r.checkboxChecked) {
+    writeSettings({ ...readSettings(), pagecheck: "off" });
+    buildMenu();
   }
+  if (r.response === 0) return null;
+  return { trust: r.response === 2 ? "vision" : "layer", apiKey };
 }
 
 async function openPath(path: string) {
@@ -164,8 +226,8 @@ async function openPath(path: string) {
   } else {
     const target = join(dataDir(), `${basename(path).replace(/\W+/g, "_")}_${Date.now()}.parallax`);
     if (ext === "pdf") {
-      const script = Imp.findSidecar(readSettings().skillDir as string | undefined);
-      if (!script) {
+      const skill = Imp.findSkillDir(readSettings().skillDir as string | undefined);
+      if (!skill) {
         throw new Error(
           "PDF 추출기를 찾지 못했습니다.\n\n" +
             "pdf-ko-translate 스킬이 필요합니다:\n" +
@@ -174,14 +236,34 @@ async function openPath(path: string) {
             "이미 변환된 .parallax 나 .md 는 그대로 열 수 있습니다."
         );
       }
-      const r = await Imp.importPdf(path, script, (p) => emit("import:progress", p));
-      attach(
-        Doc.create(
-          target,
-          { title: r.title, author: r.author, sourcePath: path, sourceKind: "pdf", pages: r.pages },
-          r.blocks
-        )
-      );
+      const prog = (p: T.ImportProgress) => emit("import:progress", p);
+      const ex = await Imp.extractPdf(path, skill, prog);
+      try {
+        const plan = await planPagecheck(skill, ex);
+        if (plan) {
+          try {
+            await Imp.pagecheckPdf(ex, path, skill, plan, prog);
+          } catch (e: any) {
+            /* 검증에서 멈추거나 넘어져도 추출본은 멀쩡하다 — 문서는 연다.
+               pagecheck 는 다 끝난 뒤에야 book.json 을 덮어쓰므로 중간에
+               죽어도 남아 있는 것은 추출 직후 상태 그대로다. */
+            if (!(e instanceof Imp.Cancelled)) {
+              dialog.showErrorBox("페이지 검증에 실패했습니다",
+                `${e.message ?? String(e)}\n\n추출한 상태 그대로 엽니다.`);
+            }
+          }
+        }
+        const r = Imp.readExtraction(ex);
+        attach(
+          Doc.create(
+            target,
+            { title: r.title, author: r.author, sourcePath: path, sourceKind: "pdf", pages: r.pages },
+            r.blocks
+          )
+        );
+      } finally {
+        Imp.discard(ex);
+      }
     } else if (ext === "md" || ext === "markdown") {
       const r = Imp.importMarkdown(path);
       attach(Doc.create(target, { title: r.title, sourcePath: path, sourceKind: "md" }, r.blocks));
@@ -206,7 +288,7 @@ async function doExport(fmt: "md" | "html") {
   if (!doc) return;
   const m = doc.meta();
   const r = await dialog.showSaveDialog({
-    defaultPath: `${(m.title_ko || m.title || "book").replace(/[\\/:*?"<>|]/g, "_")}.${fmt}`,
+    defaultPath: `${docTitle(m).replace(/[\\/:*?"<>|]/g, "_")}.${fmt}`,
   });
   if (r.canceled || !r.filePath) return;
   const blocks = doc.range(0, doc.count());
@@ -217,8 +299,9 @@ async function doExport(fmt: "md" | "html") {
 /* ── IPC ─────────────────────────────────────────────── */
 function wireIpc() {
   ipcMain.handle("doc:open", async (_e, path?: string) =>
-    path ? openPath(path) : pickAndOpen()
+    path ? openPath(path).catch(reportOpenError) : pickAndOpen()
   );
+  ipcMain.handle("doc:cancelImport", () => Imp.cancelImport());
   ipcMain.handle("doc:meta", () => doc?.meta() ?? null);
   ipcMain.handle("blocks:count", () => doc?.count() ?? 0);
   ipcMain.handle("blocks:range", (_e, off: number, lim: number) => doc?.range(off, lim) ?? []);
@@ -341,7 +424,7 @@ app.whenReady().then(() => {
 
   const fileArg = process.argv.slice(1).find((a) => a.endsWith(".parallax"));
   if (fileArg && existsSync(fileArg)) {
-    win!.webContents.once("did-finish-load", () => openPath(fileArg).catch(() => {}));
+    win!.webContents.once("did-finish-load", () => openPath(fileArg).catch(reportOpenError));
   }
 
   app.on("activate", () => {
@@ -351,7 +434,7 @@ app.whenReady().then(() => {
 
 app.on("open-file", (e, path) => {
   e.preventDefault();
-  if (win) openPath(path).catch((err) => dialog.showErrorBox("열 수 없습니다", String(err)));
+  if (win) openPath(path).catch(reportOpenError);
 });
 
 app.on("window-all-closed", () => {

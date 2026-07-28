@@ -1,5 +1,5 @@
-import { readFileSync, existsSync, rmSync } from "node:fs";
-import { spawn, spawnSync } from "node:child_process";
+import { readFileSync, existsSync, mkdtempSync, rmSync } from "node:fs";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { basename, extname, join } from "node:path";
 import { homedir, tmpdir } from "node:os";
 import * as T from "../../shared/types";
@@ -87,10 +87,13 @@ export function importText(path: string): { title: string; blocks: RawBlock[] } 
 }
 
 /**
- * PDF → 파이썬 sidecar. `pdf-ko-translate` 스킬의 extract.py 를 그대로 쓴다.
+ * PDF → 파이썬 sidecar. `pdf-ko-translate` 스킬의 스크립트를 그대로 쓴다.
  * 스킬 경로를 설정에서 받거나 표준 위치에서 찾는다.
+ *
+ * 스크립트 하나가 아니라 스킬 폴더를 돌려준다 — 추출(extract.py) 다음에
+ * 페이지 검증(pagecheck.py)도 같은 폴더에서 불러야 한다.
  */
-export function findSidecar(configured?: string | null): string | null {
+export function findSkillDir(configured?: string | null): string | null {
   /* homedir() 를 쓴다. Windows 에는 HOME 이 없어 (USERPROFILE 을 쓴다)
      `undefined/.claude/skills/…` 를 뒤지고 있었다. */
   const home = homedir();
@@ -102,11 +105,14 @@ export function findSidecar(configured?: string | null): string | null {
     join(process.cwd(), "..", "pdf-ko-translate"),
   ].filter(Boolean) as string[];
   for (const c of cands) {
-    const s = join(c, "scripts", "extract.py");
-    if (existsSync(s)) return s;
+    if (existsSync(join(c, "scripts", "extract.py"))) return c;
   }
   return null;
 }
+
+/** 스킬에 pagecheck 가 함께 들어 있는가 — 오래된 스킬 사본이면 없을 수 있다. */
+export const hasPagecheck = (skillDir: string) =>
+  existsSync(join(skillDir, "scripts", "pagecheck.py"));
 
 /**
  * 실제로 돌아가는 파이썬을 찾는다.
@@ -133,56 +139,191 @@ export function findPython(): string | null {
   return (pythonCache = null);
 }
 
-export function importPdf(
-  path: string,
+/** 사용자가 중간에 멈춘 것. 실패와 구분해야 오류 상자가 뜨지 않는다. */
+export class Cancelled extends Error {
+  constructor() {
+    super("취소했습니다.");
+    this.name = "Cancelled";
+  }
+}
+
+/* 파이썬 자식은 한 번에 하나만 돈다 — 문서도 한 번에 하나만 연다.
+   페이지 검증은 몇 분씩 걸리고 쪽마다 돈이 나가므로 멈출 수 있어야 한다. */
+let running: ChildProcess | null = null;
+let stopped = false;
+
+/** 돌고 있는 추출·검증을 멈춘다. 멈춘 게 있으면 true. */
+export function cancelImport(): boolean {
+  if (!running) return false;
+  stopped = true;
+  running.kill();
+  return true;
+}
+
+function runPy(
   script: string,
-  onProgress: (p: T.ImportProgress) => void
-): Promise<{ title: string; author: string; pages: number; blocks: RawBlock[] }> {
+  args: string[],
+  env: Record<string, string> | null,
+  onLine: (line: string) => void
+): Promise<void> {
   return new Promise((resolve, reject) => {
-    /* 임시 산출물은 임시 폴더에 쓴다. 원본 옆에 쓰면 extract.py 가 같은 자리에
-       내는 blocks.txt 까지 사용자의 문서 폴더에 남는다. */
-    const tmp = join(tmpdir(), `parallax-extract-${Date.now()}.json`);
     const py = findPython();
     if (!py) {
       return reject(new Error(
         "파이썬 3을 찾지 못했습니다. 설치했다면 PARALLAX_PYTHON 에 실행 파일 경로를 지정하세요."));
     }
-    const proc = spawn(py, [script, path, "--out", tmp], { stdio: ["ignore", "pipe", "pipe"] });
+    stopped = false;
+    const proc = spawn(py, [script, ...args], {
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+      /* 파이썬의 표준 출력 인코딩은 콘솔 코드페이지를 따른다. Windows 에서는
+         cp949 라 진행 문구의 한글·대시가 깨져 들어왔다. UTF-8 로 못박는다. */
+      env: { ...process.env, PYTHONIOENCODING: "utf-8", ...(env ?? {}) },
+    });
+    running = proc;
 
     let err = "";
+    /* 줄 단위로 자른다. 청크 경계는 줄 경계와 무관해서, 예전처럼 청크의
+       마지막 줄만 보면 진행 표시가 띄엄띄엄 건너뛴다. */
+    let buf = "";
     proc.stdout.on("data", (d) => {
-      const s = String(d);
-      const m = /(\d+)\s+blocks/.exec(s);
-      onProgress({ stage: "extract", message: s.trim().split("\n").pop(), blocks: m ? +m[1] : undefined });
+      buf += String(d);
+      const lines = buf.split(/\r?\n/);
+      buf = lines.pop() ?? "";
+      for (const l of lines) if (l.trim()) onLine(l.trim());
     });
     proc.stderr.on("data", (d) => (err += d));
 
-    proc.on("error", () =>
-      reject(new Error(`${py} 를 실행할 수 없습니다. PARALLAX_PYTHON 으로 경로를 지정하세요.`))
-    );
+    proc.on("error", () => {
+      running = null;
+      reject(new Error(`${py} 를 실행할 수 없습니다. PARALLAX_PYTHON 으로 경로를 지정하세요.`));
+    });
     proc.on("close", (code) => {
-      if (code !== 0) return reject(new Error(err.trim() || `추출 실패 (exit ${code})`));
-      try {
-        const j = JSON.parse(readFileSync(tmp, "utf8"));
-        resolve({
-          title: j.meta?.title ?? basename(path, ".pdf"),
-          author: j.meta?.author ?? "",
-          pages: j.meta?.pages ?? 0,
-          blocks: j.blocks.map((b: any) => ({
-            id: b.id,
-            page: b.page ?? null,
-            type: b.type,
-            src: b.src,
-            flags: b.translate === false ? T.NO_TRANSLATE : 0,
-          })),
-        });
-      } catch (e: any) {
-        reject(new Error(`추출 결과를 읽지 못했습니다: ${e.message}`));
-      } finally {
-        for (const f of [tmp, join(tmpdir(), "blocks.txt")]) {
-          try { rmSync(f, { force: true }); } catch {}
-        }
-      }
+      running = null;
+      if (stopped) return reject(new Cancelled());
+      if (code !== 0) return reject(new Error(err.trim() || `실패 (exit ${code})`));
+      resolve();
     });
   });
+}
+
+/** 추출이 끝난 뒤의 작업 상태. 검증까지 마친 다음에 블록을 읽어 간다. */
+export interface Extraction {
+  /** 임시 작업 폴더. book.json 과 pagecheck 산출물이 여기 쌓인다. */
+  dir: string;
+  book: string;
+  title: string;
+  author: string;
+  pages: number;
+  /** 텍스트 레이어 자체가 OCR 산출물인가 — 검증의 --trust 를 이걸로 고른다. */
+  ocrLayer: boolean;
+  blocks: number;
+}
+
+/**
+ * PDF → book.json. 산출물은 전부 임시 폴더 하나에 모은다.
+ *
+ * 예전에는 임시 폴더 바닥에 파일을 흩뿌렸다. pagecheck 는 book.json 옆에
+ * `pages/`(쪽 이미지)·캐시·리포트를 만들기 때문에 한 폴더로 묶어야 통째로
+ * 지울 수 있다.
+ */
+export async function extractPdf(
+  pdfPath: string,
+  skillDir: string,
+  onProgress: (p: T.ImportProgress) => void
+): Promise<Extraction> {
+  const dir = mkdtempSync(join(tmpdir(), "parallax-import-"));
+  const book = join(dir, "book.json");
+  try {
+    await runPy(join(skillDir, "scripts", "extract.py"), [pdfPath, "--out", book], null, (line) => {
+      const m = /(\d+)\s+blocks/.exec(line);
+      onProgress({ stage: "extract", message: line, blocks: m ? +m[1] : undefined });
+    });
+    const j = JSON.parse(readFileSync(book, "utf8"));
+    return {
+      dir,
+      book,
+      title: j.meta?.title || basename(pdfPath, extname(pdfPath)),
+      author: j.meta?.author ?? "",
+      pages: j.meta?.pages ?? 0,
+      ocrLayer: !!j.meta?.ocr_layer,
+      blocks: j.blocks?.length ?? 0,
+    };
+  } catch (e: any) {
+    discard({ dir });
+    throw e instanceof Error ? e : new Error(String(e));
+  }
+}
+
+export interface PagecheckOptions {
+  /** layer = 글자는 텍스트 레이어가 정답, 구조만 이미지로 고친다. vision = 전 쪽 재판독. */
+  trust: "layer" | "vision";
+  apiKey: string;
+  /** "1-20" 처럼 일부만. 시험 삼아 돌려 볼 때 쓴다. */
+  pages?: string;
+}
+
+/**
+ * book.json 을 제자리에서 고친다. 쪽 이미지를 모델에 보내므로 돈과 시간이 든다.
+ *
+ * 앱은 지금까지 extract.py 만 불렀다. 그래서 표지 조각이 목차에 섞이고 텍스트
+ * 레이어의 OCR 오류가 그대로 남았다 — CLI 파이프라인을 거친 `.parallax` 와
+ * 앱으로 연 PDF 의 품질이 달랐던 이유가 이것이다.
+ */
+export async function pagecheckPdf(
+  ex: Extraction,
+  pdfPath: string,
+  skillDir: string,
+  opts: PagecheckOptions,
+  onProgress: (p: T.ImportProgress) => void
+): Promise<void> {
+  const args = [ex.book, "--pdf", pdfPath, "--trust", opts.trust];
+  if (opts.pages) args.push("--pages", opts.pages);
+  await runPy(join(skillDir, "scripts", "pagecheck.py"), args,
+    { ANTHROPIC_API_KEY: opts.apiKey }, (line) => {
+      /* _llm.progress() 가 내는 `[12/191] 6% pages read` */
+      const m = /^\[(\d+)\/(\d+)\]/.exec(line);
+      onProgress({
+        stage: "pagecheck",
+        message: line,
+        page: m ? +m[1] : undefined,
+        of: m ? +m[2] : undefined,
+      });
+    });
+}
+
+/** 검증까지 끝난 book.json 을 앱 블록으로 읽는다. */
+export function readExtraction(ex: Extraction): { title: string; author: string; pages: number; blocks: RawBlock[] } {
+  let j: any;
+  try {
+    j = JSON.parse(readFileSync(ex.book, "utf8"));
+  } catch (e: any) {
+    throw new Error(`추출 결과를 읽지 못했습니다: ${e.message}`);
+  }
+  return {
+    title: j.meta?.title || ex.title,
+    author: j.meta?.author ?? "",
+    pages: j.meta?.pages ?? 0,
+    blocks: j.blocks.map((b: any) => ({
+      id: b.id,
+      page: b.page ?? null,
+      type: b.type,
+      src: b.src,
+      /* pagecheck 가 남기는 내력도 함께 옮긴다. 어느 블록이 판독 텍스트인지는
+         나중에 원문을 의심할 때 유일한 단서다. 스킬의 `_parallax.py: flags_of`
+         와 같은 대응이다 — 한쪽을 고치면 다른 쪽도 고쳐야 한다. */
+      flags:
+        (b.translate === false ? T.NO_TRANSLATE : 0) |
+        (b.from_ocr ? T.FROM_OCR : 0) |
+        (b.rebuilt ? T.REBUILT : 0) |
+        (b.stitched ? T.STITCHED : 0) |
+        (b.needs_review ? T.NEEDS_REVIEW : 0) |
+        (b.dropped ? T.DROPPED : 0),
+    })),
+  };
+}
+
+/** 임시 작업 폴더를 통째로 지운다 — 쪽 이미지가 수백 MB 까지 간다. */
+export function discard(ex: Pick<Extraction, "dir">) {
+  try { rmSync(ex.dir, { recursive: true, force: true }); } catch { /* 남아도 임시 폴더다 */ }
 }

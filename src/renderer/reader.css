@@ -35,6 +35,11 @@
   --leading: 1.78;
   --para-k: 0.5;             /* 단락 사이 여백 = 줄 높이의 이 배수 */
   --indent: 1em;
+  /* 짝 강조 상자의 안여백. 왼쪽 값이 세로선과 글 사이의 간격이 된다.
+     위아래는 좌우보다 좁다 — 줄 높이의 반줄(half-leading)이 이미 글 위아래에
+     붙어 있어서, 같은 값을 주면 위아래가 더 벌어져 보인다. */
+  --hl-x: 1.5rem;
+  --hl-y: .7rem;
   --radius: 3px;
   --dur: .15s;
 }
@@ -88,7 +93,6 @@ body {
 .bar {
   position: fixed; top: 0; left: 0; right: 0; z-index: 65;
   display: flex; align-items: center; gap: .5rem;
-  overflow-x: auto; overflow-y: hidden; scrollbar-width: thin;
   height: var(--bar-h); box-sizing: border-box; flex: 0 0 auto;
   padding: 0 .9rem;
   background: color-mix(in srgb, var(--bg) 90%, transparent);
@@ -97,31 +101,57 @@ body {
   font-family: var(--font-ui);
   font-size: var(--ui-size);
 }
-/* 서체·크기 컨트롤 — 전부 상단 바 안에 둔다 */
+/* 바에는 목차·조판·번역 범위·테마만 있다. 조판 축은 「조판」 패널로 내려갔다 —
+   일곱 개를 한 줄에 늘어놓으면 1400px 에서 이미 가로로 넘쳤고, 넘친 툴바는
+   스크롤해야 보이므로 없는 것과 같다. 바는 이제 넘치지 않는다. */
 .bar > * { flex: none; }
+.bar .grow { flex: 1 1 auto; }
 .bar .ctl { display: flex; align-items: center; gap: .3rem; }
 .bar .ctl > span {
   color: var(--ink-soft); font-size: .9em;
   letter-spacing: .04em; white-space: nowrap;
 }
 .bar .ctl select { max-width: 11rem; }
-.bar input[type="range"] {
-  width: 6.5rem; padding: 0; accent-color: var(--accent);
-  background: transparent; border: 0; cursor: pointer;
-}
-.bar output {
-  min-width: 2.6rem; text-align: right;
-  color: var(--ink-soft); font-variant-numeric: tabular-nums;
-}
-.bar .sep {
-  width: 1px; align-self: stretch; margin: .1rem .15rem;
-  background: var(--rule);
+
+@media (max-width: 620px) {
+  .bar .ctl > span { display: none; }
 }
 
-@media (max-width: 860px) {
-  .bar .ctl > span { display: none; }
-  .bar .ctl select { max-width: 8rem; }
+/* ── 조판 패널 ────────────────────────────────────────── */
+
+/* 바 아래에 매달린다. 본문을 덮되 밀지 않는다 — 조판을 만지는 동안 글이
+   움직이면 무엇이 바뀌었는지 보이지 않는다. */
+.panel {
+  position: fixed; top: var(--bar-h); left: .9rem; z-index: 70;
+  display: none;
+  grid-template-columns: auto 1fr auto;
+  align-items: center; gap: .55rem .7rem;
+  box-sizing: border-box;
+  max-width: calc(100vw - 1.8rem);
+  padding: .9rem 1rem 1rem;
+  background: var(--bg);
+  border: 1px solid var(--rule); border-top: 0;
+  border-radius: 0 0 10px 10px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / .18);
+  font-family: var(--font-ui);
+  font-size: var(--ui-size);
 }
+.panel[data-open="true"] { display: grid; }
+/* 라벨을 격자에 녹여 라벨·컨트롤·값이 행마다 같은 세로선에 선다 */
+.panel .ctl { display: contents; }
+.panel .ctl > span {
+  color: var(--ink-soft); letter-spacing: .04em; white-space: nowrap;
+}
+.panel select { grid-column: 2 / -1; min-width: 12rem; }
+.panel input[type="range"] {
+  width: 100%; min-width: 11rem; padding: 0; accent-color: var(--accent);
+  background: transparent; border: 0; cursor: pointer;
+}
+.panel output {
+  min-width: 3rem; text-align: right;
+  color: var(--ink-soft); font-variant-numeric: tabular-nums;
+}
+.panel .wide { grid-column: 1 / -1; margin-top: .35rem; }
 
 /* ── 본문: 블록 쌍 = 그리드 한 행 ─────────────────────── */
 
@@ -156,12 +186,22 @@ body {
   text-indent: 0;
 }
 
+/* 강조 상자는 글만 감싼다.
+   블록 사이 여백은 padding 이 아니라 margin 으로 준다 — padding 이면 단락
+   간격(줄 높이 한 개 분)까지 상자 안에 들어와, 강조가 글보다 한 줄 위에서
+   시작한다. 세로 여백은 같은 크기의 음수 margin 으로 되돌리므로 상자가
+   커져도 줄 자리는 그대로다. 이웃 상자와 겹칠 수 있지만 강조는 한 번에
+   하나뿐이라 보이지 않는다. */
 .cell {
   min-width: 0;
-  padding: .1rem .45rem;
+  padding: var(--hl-y) var(--hl-x);
   border-radius: var(--radius);
   border-left: 2px solid transparent;
+  /* 세로선 자리는 예전 그대로 두고 글을 오른쪽으로 물린다 — 선을 왼쪽으로
+     더 빼면 본문 여백(--pad)을 넘어 창 밖으로 나간다. */
   margin-left: -.55rem;
+  margin-top: calc(var(--blockgap, 0px) - var(--hl-y));
+  margin-bottom: calc(var(--blockgap-b, 0px) - var(--hl-y));
   transition: background var(--dur), border-color var(--dur);
 }
 .doc.linked .cell:hover, .cell.mate { background: var(--bg-soft); }
@@ -192,16 +232,18 @@ body {
 }
 /* 본문 단락 사이 여백 = 줄 높이 × --para-k. 줄 높이가 크기 × 줄간격이므로
    여백은 둘 모두에 비례하고, 좌우 대역의 행이 같은 그리드에 남는다.
-   제목 앞 여백은 위계를 만드는 값이라 건드리지 않는다. */
+   제목 앞 여백은 위계를 만드는 값이라 건드리지 않는다.
+   값만 정하고 실제로 붙이는 것은 위 `.cell` 의 margin 이다 — 강조 상자가
+   이 여백까지 덮지 않게 하려면 padding 이 아니라 margin 이어야 한다. */
 .row-p .cell, .row-quote .cell,
 .row-footnote .cell, .row-figcaption .cell {
-  padding-top: calc(var(--leading) * var(--para-k) * 1em);
+  --blockgap: calc(var(--leading) * var(--para-k) * 1em);
 }
 
-.row-h1 .cell { padding-top: 3.2rem; padding-bottom: 1.1rem; }
-.row-h2 .cell { padding-top: 2.2rem; padding-bottom: .7rem; }
-.row-h3 .cell { padding-top: 1.4rem; padding-bottom: .4rem; }
-.row:first-child .cell { padding-top: 0; }
+.row-h1 .cell { --blockgap: 3.2rem; --blockgap-b: 1.1rem; }
+.row-h2 .cell { --blockgap: 2.2rem; --blockgap-b: .7rem; }
+.row-h3 .cell { --blockgap: 1.4rem; --blockgap-b: .4rem; }
+.row:first-child .cell { --blockgap: 0px; }
 
 .cell blockquote {
   margin: 1.1rem 0; padding-left: .9rem;
@@ -431,6 +473,40 @@ body.dragging { user-select: none; cursor: col-resize; }
   font-family: var(--font-ui); font-size: calc(var(--ui-size) * .88);
   color: var(--ink-soft);
 }
+/* 문서 여는 중.
+   아래 가운데에 둔다 — 왼쪽은 목차(z-index 60)가 덮고 오른쪽은 번역 상태가
+   쓴다. 목차 위로 올라와야 하므로 z-index 도 그보다 높다. 잠깐 떠 있다 사라진다. */
+.importing {
+  position: fixed; left: 50%; bottom: 0; transform: translateX(-50%); z-index: 68;
+  display: flex; align-items: center; gap: .6rem;
+  max-width: min(46rem, 96vw);
+  padding: .4rem .8rem;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--rule); border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+  box-shadow: 0 -4px 20px rgb(0 0 0 / .1);
+  font-family: var(--font-ui); font-size: calc(var(--ui-size) * .88);
+  color: var(--ink-soft);
+}
+.importing[hidden] { display: none; }
+.importing .what { color: var(--ink); font-weight: 600; }
+.importing .detail {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.importing .pulse {
+  flex: none; width: .5rem; height: .5rem; border-radius: 50%;
+  background: var(--accent); animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .importing .pulse { animation: none; } }
+.importing button {
+  flex: none; font: inherit; padding: .1rem .5rem;
+  color: var(--ink); background: transparent;
+  border: 1px solid var(--rule); border-radius: var(--radius); cursor: pointer;
+}
+
 .status b { font-weight: 600; color: var(--ink); }
 .status .bar-track {
   width: 8rem; height: 3px; border-radius: 2px; background: var(--rule); overflow: hidden;

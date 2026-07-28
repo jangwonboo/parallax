@@ -4,6 +4,8 @@ import { contextBridge, ipcRenderer } from "electron";
 const api = {
   doc: {
     open: (path?: string) => ipcRenderer.invoke("doc:open", path),
+    /** 돌고 있는 추출·페이지 검증을 멈춘다. */
+    cancelImport: () => ipcRenderer.invoke("doc:cancelImport"),
     meta: () => ipcRenderer.invoke("doc:meta"),
   },
   blocks: {

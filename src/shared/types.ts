@@ -89,7 +89,7 @@ export interface DictEntry {
 }
 
 export interface ImportProgress {
-  stage: "read" | "extract" | "structure" | "write" | "done" | "error";
+  stage: "read" | "extract" | "pagecheck" | "structure" | "write" | "done" | "error";
   page?: number;
   of?: number;
   blocks?: number;

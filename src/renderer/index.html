@@ -14,9 +14,25 @@
 
 <div class="prog" id="prog"></div>
 
+<!-- 툴바에는 늘 쓰는 것만 남긴다. 조판 컨트롤 일곱 개를 한 줄에 늘어놓으면
+     1400px 에서 이미 가로 스크롤이 생겼다. -->
 <header class="bar">
   <button id="tocBtn" aria-expanded="false">목차</button>
+  <button id="typeBtn" aria-expanded="false" aria-controls="typePanel">조판</button>
+  <span class="grow"></span>
+  <label class="ctl"><span>번역</span>
+    <select id="modeSel" aria-label="번역 범위">
+      <option value="viewport">따라가기</option>
+      <option value="chapter">현재 장</option>
+      <option value="all">전체</option>
+    </select></label>
+  <select id="themeSel" aria-label="테마">
+    <option value="light">밝게</option>
+    <option value="night">어둡게</option>
+  </select>
+</header>
 
+<div class="panel" id="typePanel" data-open="false" role="group" aria-label="조판">
   <label class="ctl"><span>영문 글꼴</span>
     <select id="faceSrc" aria-label="영문 글꼴"></select></label>
   <label class="ctl"><span>한글 글꼴</span>
@@ -33,20 +49,8 @@
   <label class="ctl"><span>본문 폭</span>
     <input type="range" id="width" min="50" max="100" step="5" aria-label="본문 폭">
     <output id="widthOut"></output></label>
-
-  <label class="ctl"><span>번역</span>
-    <select id="modeSel" aria-label="번역 범위">
-      <option value="viewport">따라가기</option>
-      <option value="chapter">현재 장</option>
-      <option value="all">전체</option>
-    </select></label>
-
-  <button id="evenBtn" title="좌우 폭을 절반으로">균등</button>
-  <select id="themeSel" aria-label="테마">
-    <option value="light">밝게</option>
-    <option value="night">어둡게</option>
-  </select>
-</header>
+  <button id="evenBtn" class="wide" title="좌우 폭을 절반으로">좌우 폭 균등</button>
+</div>
 
 <nav class="toc" id="toc" data-open="false" aria-label="목차"></nav>
 
@@ -93,6 +97,15 @@
     </menu>
   </form>
 </dialog>
+
+<!-- 추출·페이지 검증 진행. 검증은 몇 분씩 걸리므로 어디까지 갔는지와
+     멈추는 방법이 늘 보여야 한다. -->
+<div class="importing" id="importing" hidden role="status" aria-live="polite">
+  <span class="pulse" aria-hidden="true"></span>
+  <span class="what" id="impWhat"></span>
+  <span class="detail" id="impMsg"></span>
+  <button id="impCancel">취소</button>
+</div>
 
 <div class="status" id="status" hidden>
   <span id="stMode"></span>

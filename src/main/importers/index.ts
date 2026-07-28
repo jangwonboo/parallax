@@ -299,6 +299,8 @@ export function readExtraction(ex: Extraction): {
   title: string; author: string; pages: number; blocks: RawBlock[];
   /** `--trust vision` 이 밀어낸 원 텍스트 레이어. 페이지 → 원문 조각들. */
   superseded: Record<string, unknown[]>;
+  /** pagecheck 판정. 리포트 md 는 임시 폴더와 함께 지워지므로 이것이 유일한 사본. */
+  pageCheck: T.PageCheck | null;
 } {
   let j: any;
   try {
@@ -313,6 +315,7 @@ export function readExtraction(ex: Extraction): {
     /* 재판독이 밀어낸 레이어 텍스트. 버리면 원문을 의심할 때 돌아갈 곳이 없다 —
        스킬의 export.py 도 같은 것을 .parallax 로 옮긴다. */
     superseded: j.superseded ?? {},
+    pageCheck: j.page_check ?? null,
     blocks: j.blocks.map((b: any) => ({
       id: b.id,
       page: b.page ?? null,

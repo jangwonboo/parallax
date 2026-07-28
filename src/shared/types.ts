@@ -88,6 +88,20 @@ export interface DictEntry {
   error?: string;
 }
 
+/** pagecheck 판정 — book.json 의 `page_check`. page_check 테이블로 옮겨 보관한다. */
+export interface PageCheck {
+  /** 엔진·모델·수정 통계 한 줄. 테이블에는 page=0 행으로 들어간다. */
+  summary: string;
+  pages: {
+    page: number;
+    coverage: number | null;
+    columns: number | null;
+    /** 이상 사유(세미콜론 구분). 재수입 행은 메모까지 합쳐져 있다. */
+    reasons?: string[];
+    notes?: string;
+  }[];
+}
+
 export interface ImportProgress {
   stage: "read" | "extract" | "pagecheck" | "structure" | "write" | "done" | "error";
   page?: number;

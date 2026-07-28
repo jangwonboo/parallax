@@ -70,7 +70,10 @@ export class Doc {
     blocks: { id: string; page?: number | null; type: string; src: string; flags?: number }[],
     /* 재판독(`--trust vision`)이 밀어낸 원 텍스트 레이어. 스킬 export.py 와 같은
        저장 형식(page 정수, payload 는 JSON 문자열)이다 — 한쪽을 고치면 다른 쪽도. */
-    superseded?: Record<string, unknown[]>
+    superseded?: Record<string, unknown[]>,
+    /* pagecheck 판정. 리포트 파일은 임시 폴더와 함께 지워지므로 여기 못 넣으면
+       쪽당 비전 호출로 산 근거가 사라진다. 요약은 page=0 행. */
+    pageCheck?: T.PageCheck | null
   ): Doc {
     const db = new Database(path);
     db.exec(DDL);
@@ -98,8 +101,26 @@ export class Doc {
       for (const [pg, items] of Object.entries(superseded ?? {})) {
         sup.run(parseInt(pg, 10), JSON.stringify(items));
       }
+      if (pageCheck) {
+        const pc = db.prepare(
+          "INSERT INTO page_check(page,coverage,columns,notes,checked_at) VALUES (?,?,?,?,?)");
+        pc.run(0, null, null, pageCheck.summary, now);
+        for (const r of pageCheck.pages) {
+          /* 사유·메모를 notes 로 합친다 — 스킬 export.py 와 같은 규칙. */
+          const notes = [(r.reasons ?? []).join("; "), r.notes ?? ""]
+            .filter(Boolean).join(" — ");
+          pc.run(r.page, r.coverage, r.columns, notes, now);
+        }
+      }
     })();
     return new Doc(db, path);
+  }
+
+  /** pagecheck 판정 행. page=0 이 요약, 없으면 검증 없이 연 문서다. */
+  pageCheck(): { page: number; coverage: number | null; columns: number | null; notes: string | null }[] {
+    return this.db
+      .prepare("SELECT page,coverage,columns,notes FROM page_check ORDER BY page")
+      .all() as any;
   }
 
   meta(): T.DocMeta {

@@ -118,6 +118,7 @@ function buildMenu() {
         { type: "separator" },
         { label: "Markdown 내보내기", click: () => doExport("md") },
         { label: "HTML 내보내기", click: () => doExport("html") },
+        { label: "페이지 검증 리포트", click: () => showPagecheckReport() },
         { type: "separator" },
         isMac ? { role: "close" as const } : { role: "quit" as const },
       ],
@@ -139,6 +140,45 @@ function buildMenu() {
     },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+/* ── 페이지 검증 리포트 ──────────────────────────────── */
+
+/**
+ * page_check 테이블에서 리포트를 되살려 기본 편집기로 연다.
+ *
+ * pagecheck 가 만들던 md 파일은 임시 폴더와 함께 지워진다 — 문서에 남긴 판정
+ * 행이 유일한 사본이라 여기서 다시 조립한다. 이상 없는 쪽(내용 없는 행)은
+ * 표에서 뺀다.
+ */
+function showPagecheckReport() {
+  if (!doc) {
+    dialog.showErrorBox("페이지 검증 리포트", "열려 있는 문서가 없습니다.");
+    return;
+  }
+  const rows = doc.pageCheck();
+  if (!rows.length) {
+    dialog.showErrorBox("페이지 검증 리포트",
+      "이 문서에는 검증 기록이 없습니다.\n(PDF 를 열 때 페이지 검증을 건너뛰었거나, 검증 이전에 만든 문서입니다.)");
+    return;
+  }
+  const summary = rows.find((r) => r.page === 0)?.notes ?? "";
+  const pages = rows.filter((r) => r.page !== 0);
+  const flagged = pages.filter((r) => r.notes);
+  const lines = [
+    `# 페이지 검증 리포트 — ${docTitle(doc.meta())}`, "",
+    summary, "",
+    `검사한 쪽 ${pages.length} · 이상 ${flagged.length}`, "",
+    "| 쪽 | 일치율 | 단 | 사유·메모 |", "|---|---|---|---|",
+    ...(flagged.length
+      ? flagged.map((r) =>
+          `| ${r.page} | ${r.coverage == null ? "—" : Math.round(r.coverage * 100) + "%"} ` +
+          `| ${r.columns ?? "—"} | ${r.notes} |`)
+      : ["| — | — | — | 이상 없음 |"]),
+  ];
+  const out = join(app.getPath("temp"), "parallax-pagecheck-report.md");
+  writeFileSync(out, lines.join("\n"), "utf8");
+  shell.openPath(out);
 }
 
 /* ── 열기 ────────────────────────────────────────────── */
@@ -259,7 +299,8 @@ async function openPath(path: string) {
             target,
             { title: r.title, author: r.author, sourcePath: path, sourceKind: "pdf", pages: r.pages },
             r.blocks,
-            r.superseded
+            r.superseded,
+            r.pageCheck
           )
         );
       } finally {

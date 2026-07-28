@@ -20,10 +20,11 @@
   --face-ko: "SUIT Variable", -apple-system, sans-serif;
   --weight-ko: 400;          /* 400이 없는 서체가 있어 서체별로 정해진다 */
   --size: 16px;              /* 좌우 공통 */
-  /* 툴바·사전 — 윈도우 기본 UI 크기(Segoe UI 9pt = 96dpi 에서 12px)로
-     고정한다. 본문을 따라 움직이면 본문을 키울 때마다 창 전체가 요동친다.
-     목차는 예외 — 항목이 본문의 제목 그 자체라 본문 조판을 따른다. 덮어
-     뜨는 패널이라 크기가 바뀌어도 툴바·본문 배치는 움직이지 않는다. */
+  /* 툴바 — 윈도우 기본 UI 크기(Segoe UI 9pt = 96dpi 에서 12px)로 고정한다.
+     본문을 따라 움직이면 본문을 키울 때마다 창 전체가 요동친다.
+     목차(0.88배)·사전(0.8배)은 예외 — 본문의 제목과 본문에서 고른 단어를
+     보는 창이라 본문 조판을 따른다. 둘 다 덮어 뜨는 패널이라 크기가 바뀌어도
+     툴바·본문 배치는 움직이지 않는다. */
   --ui-size: 12px;
   --bar-h: 3.7rem;           /* 툴바 높이 — 고정. 글꼴 크기를 바꿔도 움직이지 않는다 */
   --maxw: 100%;              /* 본문 전체 폭 — 기본은 창에 꽉 채운다 */
@@ -294,63 +295,70 @@ body.dragging { user-select: none; cursor: col-resize; }
 
 .dict {
   position: fixed; z-index: 70;
-  width: min(23rem, calc(100vw - 1.5rem));
-  max-height: min(24rem, 60vh);
+  /* 팝업 크기·안여백은 전부 em — 글자를 키우면 상자도 같이 큰다. 폭은 화면을
+     넘지 않게 vw 로 자른다. */
+  width: min(23em, calc(100vw - 1.5rem));
+  max-height: min(24em, 60vh);
   display: none; flex-direction: column;
   background: var(--bg);
   border: 1px solid var(--rule);
   border-radius: 6px;
   box-shadow: 0 6px 28px rgba(0, 0, 0, .16), 0 1px 3px rgba(0, 0, 0, .1);
   font-family: var(--font-ui);
-  font-size: var(--ui-size); line-height: 1.62;
+  /* 본문에서 고른 단어를 본문 옆에서 읽는 창이라 본문 조판을 따른다 — 크기는
+     0.8배(보조 패널 관례, 목차의 0.88배보다 한 단계 더 작다). UI 크기 고정의
+     예외다(:root 의 --ui-size 주석 참조). */
+  font-size: calc(var(--size) * .8); line-height: 1.62;
   overflow: hidden;
 }
 [data-theme="night"] .dict { box-shadow: 0 6px 28px rgba(0, 0, 0, .55); }
 .dict[data-open="true"] { display: flex; }
 
 .dict .head {
-  display: flex; align-items: baseline; gap: .5rem;
-  padding: .6rem .8rem .5rem;
+  display: flex; align-items: baseline; gap: .5em;
+  padding: .6em .8em .5em;
   border-bottom: 1px solid var(--rule);
 }
+/* 내부 크기는 em — 기준(정의 본문) 대비 비율은 rem 시절의 실효값 그대로다:
+   표제어 1.4 · 발음 1 · 라벨 .88 · 품사 .9 · 한글 뜻 1.2 · 링크 1. */
 .dict .word {
   font-family: var(--face-src);
-  font-size: 1.06rem; font-weight: 600; letter-spacing: -.01em;
+  font-size: 1.4em; font-weight: 600; letter-spacing: -.01em;
 }
-.dict .ipa { color: var(--ink-soft); font-size: .76rem; margin-right: auto; }
+.dict .ipa { color: var(--ink-soft); font-size: 1em; margin-right: auto; }
 .dict .head button {
   font: inherit; line-height: 1; color: var(--ink-soft);
-  background: transparent; border: 0; padding: .1rem .2rem; cursor: pointer;
+  background: transparent; border: 0; padding: .1em .2em; cursor: pointer;
 }
 .dict .head button:hover { color: var(--ink); }
 
-.dict .body { overflow-y: auto; padding: .6rem .8rem .7rem; }
-.dict section + section { margin-top: .7rem; padding-top: .6rem; border-top: 1px solid var(--rule); }
+.dict .body { overflow-y: auto; padding: .6em .8em .7em; }
+.dict section + section { margin-top: .7em; padding-top: .6em; border-top: 1px solid var(--rule); }
 .dict h4 {
-  margin: 0 0 .3rem; font-size: .66rem; font-weight: 600;
+  margin: 0 0 .3em; font-size: .88em; font-weight: 600;
   letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft);
 }
 .dict .pos {
-  display: inline-block; margin-right: .35rem;
-  font-size: .68rem; font-style: italic; color: var(--accent);
+  display: inline-block; margin-right: .35em;
+  font-size: .9em; font-style: italic; color: var(--accent);
 }
-.dict .def { margin: 0 0 .35rem; }
+.dict .def { margin: 0 0 .35em; }
 .dict .def:last-child { margin-bottom: 0; }
-.dict .ko-gloss { font-size: .92rem; }
+.dict .ko-gloss { font-size: 1.2em; }
 .dict .muted { color: var(--ink-soft); }
-.dict .spin { color: var(--ink-soft); font-size: .78rem; }
+.dict .spin { color: var(--ink-soft); font-size: 1em; }
 
 .dict .links {
-  display: flex; flex-wrap: wrap; gap: .4rem;
-  padding: .5rem .8rem; border-top: 1px solid var(--rule);
+  display: flex; flex-wrap: wrap; gap: .4em;
+  padding: .5em .8em; border-top: 1px solid var(--rule);
   background: var(--bg-soft);
 }
 .dict .links a {
   color: var(--accent); text-decoration: none;
-  font-size: .74rem; padding: .12rem .3rem; border-radius: var(--radius);
+  font-size: 1em; padding: .12em .3em; border-radius: var(--radius);
 }
 .dict .links a:hover { background: var(--mark); }
-.dict .links .note { margin-left: auto; font-size: .66rem; color: var(--ink-soft); }
+.dict .links .note { margin-left: auto; font-size: .88em; color: var(--ink-soft); }
 
 /* 목차 — 본문을 덮지 않고 밀어낸다 */
 .toc {

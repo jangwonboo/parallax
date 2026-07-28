@@ -173,7 +173,9 @@ function runPy(
         "파이썬 3을 찾지 못했습니다. 설치했다면 PARALLAX_PYTHON 에 실행 파일 경로를 지정하세요."));
     }
     stopped = false;
-    const proc = spawn(py, [script, ...args], {
+    /* -u: 파이프에 물리면 파이썬 stdout 은 블록 버퍼링이라, flush 없는 print 는
+       프로세스가 끝날 때까지 안 나온다. 진행 표시가 몇 분씩 침묵하던 원인. */
+    const proc = spawn(py, ["-u", script, ...args], {
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
       /* 파이썬의 표준 출력 인코딩은 콘솔 코드페이지를 따른다. Windows 에서는
@@ -293,7 +295,11 @@ export async function pagecheckPdf(
 }
 
 /** 검증까지 끝난 book.json 을 앱 블록으로 읽는다. */
-export function readExtraction(ex: Extraction): { title: string; author: string; pages: number; blocks: RawBlock[] } {
+export function readExtraction(ex: Extraction): {
+  title: string; author: string; pages: number; blocks: RawBlock[];
+  /** `--trust vision` 이 밀어낸 원 텍스트 레이어. 페이지 → 원문 조각들. */
+  superseded: Record<string, unknown[]>;
+} {
   let j: any;
   try {
     j = JSON.parse(readFileSync(ex.book, "utf8"));
@@ -304,6 +310,9 @@ export function readExtraction(ex: Extraction): { title: string; author: string;
     title: j.meta?.title || ex.title,
     author: j.meta?.author ?? "",
     pages: j.meta?.pages ?? 0,
+    /* 재판독이 밀어낸 레이어 텍스트. 버리면 원문을 의심할 때 돌아갈 곳이 없다 —
+       스킬의 export.py 도 같은 것을 .parallax 로 옮긴다. */
+    superseded: j.superseded ?? {},
     blocks: j.blocks.map((b: any) => ({
       id: b.id,
       page: b.page ?? null,

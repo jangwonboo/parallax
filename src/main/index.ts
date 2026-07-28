@@ -258,7 +258,8 @@ async function openPath(path: string) {
           Doc.create(
             target,
             { title: r.title, author: r.author, sourcePath: path, sourceKind: "pdf", pages: r.pages },
-            r.blocks
+            r.blocks,
+            r.superseded
           )
         );
       } finally {

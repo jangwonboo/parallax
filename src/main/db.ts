@@ -67,7 +67,10 @@ export class Doc {
       sourceKind: "pdf" | "md" | "txt";
       pages?: number | null;
     },
-    blocks: { id: string; page?: number | null; type: string; src: string; flags?: number }[]
+    blocks: { id: string; page?: number | null; type: string; src: string; flags?: number }[],
+    /* 재판독(`--trust vision`)이 밀어낸 원 텍스트 레이어. 스킬 export.py 와 같은
+       저장 형식(page 정수, payload 는 JSON 문자열)이다 — 한쪽을 고치면 다른 쪽도. */
+    superseded?: Record<string, unknown[]>
   ): Doc {
     const db = new Database(path);
     db.exec(DDL);
@@ -87,10 +90,14 @@ export class Doc {
       `INSERT INTO block(id,ord,page,type,src,state,flags,updated_at)
        VALUES (?,?,?,?,?,0,?,?)`
     );
+    const sup = db.prepare("INSERT INTO superseded(page,payload) VALUES (?,?)");
     db.transaction(() => {
       blocks.forEach((b, i) =>
         ins.run(b.id, (i + 1) * T.ORD_STEP, b.page ?? null, b.type, b.src, b.flags ?? 0, now)
       );
+      for (const [pg, items] of Object.entries(superseded ?? {})) {
+        sup.run(parseInt(pg, 10), JSON.stringify(items));
+      }
     })();
     return new Doc(db, path);
   }

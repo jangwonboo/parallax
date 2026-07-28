@@ -167,20 +167,17 @@ function makeRow(b) {
   return row;
 }
 
-let spacerTop, spacerBottom, bookTitle;
+let spacerTop, spacerBottom;
 
 function resetDoc() {
   doc.innerHTML = "";
-  bookTitle = document.createElement("h1");
-  bookTitle.className = "booktitle";
-  bookTitle.textContent = meta.title || "";   /* 목차와 마찬가지로 늘 원문 */
   spacerTop = document.createElement("div");
   spacerTop.className = "spacer";
   spacerTop.id = "spacerTop";
   spacerBottom = document.createElement("div");
   spacerBottom.className = "spacer";
   spacerBottom.id = "spacerBottom";
-  doc.append(bookTitle, spacerTop, spacerBottom, handle);
+  doc.append(spacerTop, spacerBottom, handle);
   handle.hidden = false;
   mounted.clear();
   firstMounted = 0;
@@ -670,7 +667,8 @@ api.on("doc:opened", async (e) => {
 
   welcome.remove?.();
   resetDoc();
-  /* 창 제목은 늘 앱 이름이다. 문서 제목은 본문 맨 위 booktitle 에 붙어 있다. */
+  /* 창 제목은 늘 앱 이름이다. 문서 제목은 목차 문서에서 확인한다 — 본문 위에
+     붙어 따라오던 booktitle 은 자리만 차지해서 없앴다. */
 
   if (e.sourceChanged || !e.hasKey) {
     const n = document.createElement("div");
@@ -685,7 +683,7 @@ api.on("doc:opened", async (e) => {
       b.onclick = () => openKeyDialog();
       n.append(b);
     }
-    bookTitle.after(n);
+    doc.prepend(n);
   }
 
   rebuildTops();

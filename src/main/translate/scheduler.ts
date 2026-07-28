@@ -174,7 +174,14 @@ export class Scheduler {
 
       const got = await this.call(translateSystem(g), user, ids);
       const pairs: [string, string][] = [];
-      for (const b of blocks) if (got[b.id]) pairs.push([b.id, got[b.id]]);
+      for (const b of blocks) if (got[b.id]) {
+        /* 시스템 프롬프트의 블록 타입 설명(h2 = 제목 …)을 보고 모델이 이따금
+           타입 토큰을 번역 앞에 흘린다. 자기 블록의 타입과 일치할 때만 벗긴다 —
+           실제로 h2 블록 하나가 "h2 내 삶에서…" 로 저장된 적이 있다. */
+        let ko = got[b.id];
+        if (ko.startsWith(b.type + " ")) ko = ko.slice(b.type.length + 1).trim();
+        pairs.push([b.id, ko]);
+      }
 
       if (pairs.length) {
         this.doc.applyTranslation(pairs);

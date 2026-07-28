@@ -173,22 +173,6 @@ body {
   align-items: start;
 }
 
-/* 책 제목 — 본문 영역 최상단에 붙어 따라온다. 장 제목(1.5em)보다 20% 크다. */
-.booktitle {
-  position: sticky; top: var(--bar-h); z-index: 35;
-  margin: 0 0 2.4rem;
-  padding: .85rem 0 .75rem;
-  background: color-mix(in srgb, var(--bg) 93%, transparent);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--rule);
-  font-family: var(--face-ko);
-  font-weight: 700;
-  font-size: calc(var(--size) * 1.8);
-  line-height: 1.28;
-  letter-spacing: -.015em;
-  text-indent: 0;
-}
-
 /* 강조 상자는 글만 감싼다.
    블록 사이 여백은 padding 이 아니라 margin 으로 준다 — padding 이면 단락
    간격(줄 높이 한 개 분)까지 상자 안에 들어와, 강조가 글보다 한 줄 위에서

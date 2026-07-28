@@ -37,7 +37,7 @@ const api = {
   dict: {
     lookup: (word: string) => ipcRenderer.invoke("dict:lookup", word),
   },
-  export: (fmt: "md" | "html") => ipcRenderer.invoke("export", fmt),
+  export: () => ipcRenderer.invoke("export"),
 
   on(channel: string, cb: (payload: any) => void): () => void {
     const allowed = ["doc:opened", "block:updated", "import:progress", "stats", "keys:prompt"];

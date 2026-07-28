@@ -7,7 +7,7 @@ import { Doc } from "./db";
 import { Scheduler } from "./translate/scheduler";
 import * as Imp from "./importers";
 import * as T from "../shared/types";
-import { docTitle, renderHtml, renderMarkdown } from "./exporter";
+import { docTitle, renderMarkdown } from "./exporter";
 
 const DEV = process.argv.includes("--dev");
 let win: BrowserWindow | null = null;
@@ -116,8 +116,7 @@ function buildMenu() {
             writeSettings({ ...readSettings(), pagecheck: item.checked ? "ask" : "off" });
           } },
         { type: "separator" },
-        { label: "Markdown 내보내기", click: () => doExport("md") },
-        { label: "HTML 내보내기", click: () => doExport("html") },
+        { label: "Markdown 내보내기 (영·한 두 파일)", click: () => doExport() },
         { label: "페이지 검증 리포트", click: () => showPagecheckReport() },
         { type: "separator" },
         isMac ? { role: "close" as const } : { role: "quit" as const },
@@ -326,16 +325,19 @@ async function openPath(path: string) {
   });
 }
 
-async function doExport(fmt: "md" | "html") {
+/** 영문·한글을 파일 하나씩 낸다: `<이름>.en.md` / `<이름>.ko.md`. */
+async function doExport() {
   if (!doc) return;
   const m = doc.meta();
   const r = await dialog.showSaveDialog({
-    defaultPath: `${docTitle(m).replace(/[\\/:*?"<>|]/g, "_")}.${fmt}`,
+    defaultPath: `${docTitle(m).replace(/[\\/:*?"<>|]/g, "_")}.md`,
   });
   if (r.canceled || !r.filePath) return;
+  const base = r.filePath.replace(/\.md$/i, "");
   const blocks = doc.range(0, doc.count());
-  writeFileSync(r.filePath, fmt === "md" ? renderMarkdown(m, blocks) : renderHtml(m, blocks));
-  shell.showItemInFolder(r.filePath);
+  writeFileSync(`${base}.en.md`, renderMarkdown(blocks, "src"));
+  writeFileSync(`${base}.ko.md`, renderMarkdown(blocks, "ko"));
+  shell.showItemInFolder(`${base}.ko.md`);
 }
 
 /* ── IPC ─────────────────────────────────────────────── */
@@ -384,7 +386,7 @@ function wireIpc() {
   });
 
   ipcMain.handle("dict:lookup", (_e, word: string) => lookup(word));
-  ipcMain.handle("export", (_e, fmt: "md" | "html") => doExport(fmt));
+  ipcMain.handle("export", () => doExport());
 }
 
 /* ── 사전 — renderer 는 네트워크에 직접 나가지 않는다 ── */

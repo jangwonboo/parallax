@@ -20,8 +20,10 @@
   --face-ko: "SUIT Variable", -apple-system, sans-serif;
   --weight-ko: 400;          /* 400이 없는 서체가 있어 서체별로 정해진다 */
   --size: 16px;              /* 좌우 공통 */
-  /* 툴바·목차·사전 — 윈도우 기본 UI 크기(Segoe UI 9pt = 96dpi 에서 12px)로
-     고정한다. 본문을 따라 움직이면 본문을 키울 때마다 창 전체가 요동친다. */
+  /* 툴바·사전 — 윈도우 기본 UI 크기(Segoe UI 9pt = 96dpi 에서 12px)로
+     고정한다. 본문을 따라 움직이면 본문을 키울 때마다 창 전체가 요동친다.
+     목차는 예외 — 항목이 본문의 제목 그 자체라 본문 조판을 따른다. 덮어
+     뜨는 패널이라 크기가 바뀌어도 툴바·본문 배치는 움직이지 않는다. */
   --ui-size: 12px;
   --bar-h: 3.7rem;           /* 툴바 높이 — 고정. 글꼴 크기를 바꿔도 움직이지 않는다 */
   --maxw: 100%;              /* 본문 전체 폭 — 기본은 창에 꽉 채운다 */
@@ -357,7 +359,10 @@ body.dragging { user-select: none; cursor: col-resize; }
   background: var(--bg-soft); border-right: 1px solid var(--rule);
   transform: translateX(-100%); transition: transform var(--dur) ease-out;
   overflow-y: auto; padding: .8rem 1.1rem 3rem;
-  font-family: var(--font-ui); font-size: calc(var(--ui-size) * 1.06);
+  /* 항목이 본문 제목(원문)이라 본문 조판을 따른다 — 원문 서체·크기·줄간격.
+     UI 크기 고정의 예외다(:root 의 --ui-size 주석 참조). */
+  font-family: var(--face-src); font-weight: var(--weight-src);
+  font-size: var(--size); line-height: var(--leading);
 }
 .toc[data-open="true"] { transform: none; }
 .toc a {

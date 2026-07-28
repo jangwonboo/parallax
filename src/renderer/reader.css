@@ -14,10 +14,11 @@
   --gap: 2.6rem;
   --pad: 1.6rem;
 
-  /* 폰트 — 좌우 독립. 툴바에서 바뀐다 */
-  --face-src: "SUIT Variable", -apple-system, sans-serif;
-  --weight-src: 400;
-  --face-ko: "SUIT Variable", -apple-system, sans-serif;
+  /* 폰트 — 좌우 독립. 툴바에서 바뀐다. 여기 값은 JS 가 설정을 얹기 전의
+     폴백이라 app.js 의 기본 서체와 맞춰 둔다. */
+  --face-src: "Avenir Medium", "Avenir Next", "Avenir", "SUIT Variable", -apple-system, sans-serif;
+  --weight-src: 500;
+  --face-ko: "Noto Sans KR", "SUIT Variable", -apple-system, sans-serif;
   --weight-ko: 400;          /* 400이 없는 서체가 있어 서체별로 정해진다 */
   --size: 16px;              /* 좌우 공통 */
   /* 툴바 — 윈도우 기본 UI 크기(Segoe UI 9pt = 96dpi 에서 12px)로 고정한다.

@@ -26,7 +26,10 @@ const FACES_SRC = [SUIT,
   ["Merriweather", '"Merriweather",Georgia,serif', "Merriweather:wght@400;700", 400],
   ["PT Serif", '"PT Serif",Georgia,serif', "PT+Serif:wght@400;700", 400],
   ["Inter (산세리프)", '"Inter",-apple-system,sans-serif', "Inter:wght@400;700", 400],
-  ["Source Sans 3 (산세리프)", '"Source Sans 3",-apple-system,sans-serif', "Source+Sans+3:wght@400;700", 400]];
+  ["Source Sans 3 (산세리프)", '"Source Sans 3",-apple-system,sans-serif', "Source+Sans+3:wght@400;700", 400],
+  /* 로컬 설치 서체 — 웹폰트 없음(spec null). 이 PC 에는 사용자 폰트로 Avenir
+     일가가 깔려 있고 Medium 은 weight 500 으로 잡힌다. 없으면 SUIT 로 물러난다. */
+  ["Avenir Medium", '"Avenir Medium","Avenir Next","Avenir","SUIT Variable",-apple-system,sans-serif', null, 500]];
 
 const FACES_KO = [SUIT,
   ["본명조 (Noto Serif KR)", '"Noto Serif KR",serif', "Noto+Serif+KR:wght@400;700", 400],
@@ -364,15 +367,20 @@ function invalidateHeights() {
 }
 
 /* ── 툴바 ────────────────────────────────────────────── */
-function wireFace(selId, faces, faceVar, weightVar, key) {
+/* 서체는 라벨로 저장한다 — 인덱스로 저장하면 목록에 서체를 하나 넣을 때마다
+   예전 설정이 엉뚱한 서체로 되살아난다(sizePt 를 pt 로 저장하는 것과 같은
+   원칙). 숫자로 저장된 예전 설정은 지금 목록의 그 자리 라벨로 한 번 옮긴다. */
+function wireFace(selId, faces, faceVar, weightVar, key, dfltLabel) {
   const sel = document.getElementById(selId);
   faces.forEach((f, i) => {
     const o = document.createElement("option");
     o.value = String(i); o.textContent = f[0];
     sel.appendChild(o);
   });
-  let i = Number(settings[key] ?? 0);
-  if (!(i >= 0 && i < faces.length)) i = 0;
+  let saved = settings[key];
+  if (typeof saved === "number" || /^\d+$/.test(saved ?? "")) saved = faces[Number(saved)]?.[0];
+  let i = faces.findIndex((f) => f[0] === saved);
+  if (i < 0) i = Math.max(0, faces.findIndex((f) => f[0] === dfltLabel));
   sel.value = String(i);
   const apply = (idx) => {
     const f = faces[idx];
@@ -382,7 +390,7 @@ function wireFace(selId, faces, faceVar, weightVar, key) {
     invalidateHeights();
   };
   apply(i);
-  sel.addEventListener("change", () => { apply(Number(sel.value)); saveSetting(key, Number(sel.value)); });
+  sel.addEventListener("change", () => { apply(Number(sel.value)); saveSetting(key, faces[Number(sel.value)][0]); });
 }
 
 function wireRange(id, outId, apply, key, dflt) {
@@ -772,8 +780,8 @@ addEventListener("resize", () => invalidateHeights());
 (async function boot() {
   settings = (await api.settings.get()) || {};
 
-  wireFace("faceSrc", FACES_SRC, "--face-src", "--weight-src", "faceSrc");
-  wireFace("faceKo", FACES_KO, "--face-ko", "--weight-ko", "faceKo");
+  wireFace("faceSrc", FACES_SRC, "--face-src", "--weight-src", "faceSrc", "Avenir Medium");
+  wireFace("faceKo", FACES_KO, "--face-ko", "--weight-ko", "faceKo", "본고딕 (Noto Sans KR)");
   /* 툴바 글자 크기는 본문을 따라가지 않는다 — reader.css 의 --ui-size 고정값. */
   wireRange("size", "sizeOut", (v, o) => {
     setVar("--size", v + "pt");

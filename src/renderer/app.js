@@ -453,6 +453,14 @@ document.addEventListener("mousedown", (e) => {
 /* Esc 는 아래쪽 전역 처리기(사전·목차)에서 함께 받는다 — 겹쳐 등록하면
    한 번 눌렀을 때 셋이 동시에 닫힌다. */
 
+/* 드래그 선택은 시작한 대역만 — 시작 셀의 열을 body 클래스로 표시하면 CSS 가
+   반대쪽 열의 user-select 를 끈다. 셀 밖(여백)에서 시작하면 제약 없음. */
+document.addEventListener("mousedown", (e) => {
+  const cell = e.target.closest?.(".cell");
+  document.body.classList.toggle("sel-src", !!cell && cell.classList.contains("src"));
+  document.body.classList.toggle("sel-ko", !!cell && cell.classList.contains("ko"));
+});
+
 /* 넓은 화면에서 목차는 본문을 밀어낼 뿐 덮지 않는다 — 항목을 눌러도 열어둔 채로
    본문만 옮긴다. 겹쳐 뜨는 좁은 화면에서만 닫는다. */
 const tocPushes = matchMedia("(min-width: 900px)");

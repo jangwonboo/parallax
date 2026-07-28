@@ -196,6 +196,9 @@ body {
 
 .src { font-family: var(--face-src); font-weight: var(--weight-src); }
 .ko  { font-family: var(--face-ko);  font-weight: var(--weight-ko); }
+/* 드래그 선택은 시작한 쪽 대역만 잡힌다 — 처음부터 끝까지 긁어도 반대쪽 열이
+   끼어들지 않는다. 어느 쪽에서 시작했는지는 mousedown 에서 body 클래스로 표시. */
+body.sel-src .cell.ko, body.sel-ko .cell.src { user-select: none; }
 .src, .ko { font-size: var(--size); }
 .src { word-break: normal; }
 

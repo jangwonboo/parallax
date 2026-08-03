@@ -29,6 +29,7 @@
   },
   "build": {
     "appId": "fo.parallax.reader",
+    "directories": { "output": "release" },
     "files": ["dist/**", "package.json"],
     "extraResources": ["resources/**"],
     "mac": { "category": "public.app-category.productivity", "target": "dmg" },

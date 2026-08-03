@@ -2,7 +2,7 @@
 
 새 세션이 이 저장소를 이어받을 때 먼저 읽는 문서. 설계는 `spec.md`, 실행 방법은 `USAGE.md`.
 
-최종 갱신: 2026-07-28
+최종 갱신: 2026-08-01
 
 ---
 
@@ -23,10 +23,14 @@
 
 `spec.md` §10 기준 E1~E5(스케줄러·pagecheck 통합) 구현. `tsc --noEmit` 통과.
 
+2026-07-30 세션 — **07-28 수정분의 화면 재확인을 마쳤다.** `pagecheck_test_20p.pdf` 를 재생성해(원본 앞 20쪽, PyMuPDF — 지난 세션 것은 지워져 있었다) 앱으로 열고 「전 쪽 재판독」 전 구간을 실행($0.15). 확인된 것: ① 쪽별 진행 표시 `페이지 검증 중 · 7 / 20쪽 · 취소` 가 화면 아래 가운데에 뜬다. ② `superseded` 이관 — 시험 문서에 19행, 밀려난 원 레이어(`"Ihe Meaning or Your I ife"` 따위)가 그대로 보관됐다. ③ `page_check` 이관 21행(요약 `page=0` + 20쪽), **파일 → 페이지 검증 리포트** 가 임시 md 로 재조립해 연다(요약·쪽별 표 온전). 검증 방법: `--inspect=9229` 로 메인에 붙어 `dialog.showMessageBox` 를 패치해 자동 응답, 렌더러 CDP 로 관찰 — 스크립트는 세션 스크래치의 `drive-pagecheck.mjs`/`watch-pagecheck.mjs`. 요령 둘: CDP `Page.captureScreenshot` 은 창이 가려지면 응답하지 않는다(메인의 `webContents.capturePage()` 를 쓸 것), 번역 자동 시작은 렌더러에서 `setInterval` 로 `translate.pause(true)` 를 계속 눌러 막았다(지출 $0.00 확인). 같은 날 electron-builder 로 Windows 설치본(`Parallax Setup 0.1.0.exe`)을 처음 빌드했다 — 출력은 `release/`(`.gitignore`), 산출물은 언제든 재생성되므로 보관하지 않는다.
+
+2026-08-01 세션 — **UI 서체를 Adobe Clean 으로 고정.** `--font-ui` 를 `"Adobe Clean"(로컬) → "adobe-clean"(웹폰트) → SUIT…` 순으로 바꾸고, 앱 시작 시 typekit 킷(`use.typekit.net/pps7abe.css` — helpx.adobe.com 이 쓰는 공개 킷, adobe-clean 300/400/700/800/900)을 항상 로드한다. CSP 의 style-src·font-src 에 `use.typekit.net` 추가, preconnect 도. 라틴 전용 서체라 UI 의 한글은 여전히 SUIT 이하가 받는다. CDP 로 실행 확인 — 로컬 미설치 상태에서 adobe-clean 400/700 로드, `.bar` 계산 서체 일치.
+
 2026-07-28 두 번째 세션에서 들어간 것:
 
 - **pagecheck 통합을 처음으로 실제로 태웠고, 성공했다.** 20쪽 발췌 PDF(`pagecheck_test_20p.pdf`, 원본 앞 20쪽)로 전 쪽 재판독 전 구간을 검증 — 전 블록에 `from_ocr|rebuilt`(일부 `stitched`)가 붙었고 임시 폴더도 통째로 지워졌다. 다이얼로그에 쪽 범위 입력이 없으므로 비용을 묶은 시험은 발췌 PDF 를 만들어 여는 방식이 맞다.
-- **진행 표시가 침묵하던 원인 둘을 고쳤다.** ① 파이프에 물리면 파이썬 stdout 은 블록 버퍼링이라 flush 없는 `print` 가 끝까지 안 나온다 — 앱이 파이썬을 `-u` 로 띄운다(`runPy`). ② pagecheck 진행이 20쪽마다 한 번이라 20쪽 시험에서는 끝나는 순간 한 번 나오고 `done` 이 곧바로 감췄다 — 쪽마다·완료 순서(`as_completed`)로 바꿨다. **고친 뒤 화면으로 재확인은 아직 안 했다**(재실행하면 비전 비용이 다시 나간다).
+- **진행 표시가 침묵하던 원인 둘을 고쳤다.** ① 파이프에 물리면 파이썬 stdout 은 블록 버퍼링이라 flush 없는 `print` 가 끝까지 안 나온다 — 앱이 파이썬을 `-u` 로 띄운다(`runPy`). ② pagecheck 진행이 20쪽마다 한 번이라 20쪽 시험에서는 끝나는 순간 한 번 나오고 `done` 이 곧바로 감췄다 — 쪽마다·완료 순서(`as_completed`)로 바꿨다. 2026-07-30 화면 재확인 완료(아래 참조).
 - **앱이 `superseded` 를 버리던 것을 고쳤다.** 재판독이 밀어낸 원 텍스트 레이어를 CLI `export.py` 는 보관하는데 앱 `Doc.create` 경로에는 이관이 없었다. `readExtraction` → `Doc.create` 로 같은 형식(page 정수, payload JSON)으로 옮긴다.
 - **pagecheck 판정을 문서에 남기고 앱 메뉴로 되살린다.** 리포트 md 는 임시 폴더와 함께 지워지므로, `pagecheck.py` 가 판정을 `book["page_check"]` 로 내보내고 CLI `export.py` 와 앱 `Doc.create` 가 `page_check` 테이블로 옮긴다. 스키마 세 벌은 그대로 — 요약은 `page=0` 행, 사유·메모는 notes 로 합친다(규약은 `spec.md` §2.2). `parallax_import.py` 는 역방향을 복원해 왕복 무손실(스모크 테스트로 확인). 앱은 **파일 → 페이지 검증 리포트** 에서 임시 md 로 재조립해 기본 편집기로 연다.
 - **목차가 본문 조판을 따른다** — 원문 서체·줄간격에 크기는 본문의 0.88배. 항목이 본문 제목 그 자체라 UI 크기 고정(`--ui-size`)의 예외로 뒀다. 같은 크기로 하면 bold 장 제목이 본문보다 커 보여서 한 단계 내렸다(Electron 으로 계산값을 실측해 확인 — 스크립트는 세션 스크래치의 `measure-toc.js`). 덮어 뜨는 패널이라 크기가 바뀌어도 툴바·본문 배치는 요동치지 않는다.
@@ -192,9 +196,9 @@ pagecheck가 삽입·재구성한 블록은 접미사 ID를 갖는다(`b0052a`).
 
 ## 남아 있는 데이터 파일
 
-작업 파일은 **`the_meaning_of_your_life_compressed.parallax` 하나**다(948블록, 번역 전량, 쪽 번호·플래그 온전). 2026-07-28 오후에 사용자가 v2 에서 개명했다. 같은 날 손본 것: 챕터 7 자기평가 문항 5~8 유형 교정(PDF 151쪽 대조)·중복 잔해 블록 삭제, 번역 앞 `h2 ` 토큰 제거, 챕터 3 문항 구간 수리(위 참조). `*.en.md`/`.ko.md`(13:50)는 백업 — 지우지 말 것. 옛 이름의 0바이트/재건 잔재 `the_meaning_of_your_life_v2.parallax` 는 앱 종료 후 지울 것.
+작업 파일은 **`the_meaning_of_your_life_compressed.parallax` 하나**다(945블록, 번역 전량, 쪽 번호·플래그 온전 — 챕터 3 수리 직후는 948이었고 이후 중복 잔해 3블록 삭제로 945). 2026-07-28 오후에 사용자가 v2 에서 개명했다. 같은 날 손본 것: 챕터 7 자기평가 문항 5~8 유형 교정(PDF 151쪽 대조)·중복 잔해 블록 삭제, 번역 앞 `h2 ` 토큰 제거, 챕터 3 문항 구간 수리(위 참조). `*.en.md`/`.ko.md`(13:50)는 백업 — 지우지 말 것. 재건 잔재 `the_meaning_of_your_life_v2.parallax` 는 2026-07-30에 지웠다(내용이 md 스냅샷 재건이라 스냅샷이 남아 있는 한 잃는 것이 없다 — 쪽 번호 0개가 그 증거였다).
 
-시험 산출물 `pagecheck_test_20p.pdf`(원본 앞 20쪽 발췌)와 앱 데이터 폴더의 `pagecheck_test_20p_pdf_*.parallax` 는 pagecheck 재검증용으로 남겨 뒀다.
+시험 산출물 `pagecheck_test_20p.pdf`(원본 앞 20쪽 발췌, 2026-07-30 재생성)와 앱 데이터 폴더의 `pagecheck_test_20p_pdf_*.parallax` 는 pagecheck 재검증용으로 남겨 뒀다.
 
 2026-07-27에 정리하면서 구 추출본(`the_meaning_of_your_life.parallax`, 1,141블록·번역 943개)과 `README.parallax` 시험 산출물, DRM PDF, 스킬 백업 zip을 지웠다.
 
@@ -206,7 +210,6 @@ pagecheck가 삽입·재구성한 블록은 접미사 ID를 갖는다(`b0052a`).
 
 ## 열려 있는 것
 
-- **이번 세션 수정분의 화면 재확인.** 진행 표시(쪽마다 올라가는 `[n/20]`)·`superseded` 이관·리포트 메뉴는 코드·왕복 테스트로만 검증했다. `pagecheck_test_20p.pdf` 를 다시 열면(비전 비용 ~$0.15) 셋 다 한 번에 확인된다. 기존 시험 문서에는 `page_check` 기록이 없어 리포트 메뉴가 「기록 없음」을 띄우는 게 정상.
 - E5 의 나머지: 용어집 편집기 미착수.
 - `spec.md` §10의 E6(`.parallax` 내보내기, 문서 라이브러리) 미착수.
 - 블록 단위 재번역 UI 없음(백엔드 `blocks.reset`은 있다).

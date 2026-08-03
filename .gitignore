@@ -1,5 +1,6 @@
 node_modules/
 dist/
+release/
 *.log
 
 # 비밀
@@ -12,6 +13,9 @@ anthropic.key
 *.parallax-shm
 *.parallax-wal
 *.pdf
+# md 스냅샷 백업 쌍 — 파일은 지우지 말 것(CONTEXT.md), 원문 전량이라 히스토리에는 안 넣는다
+*.en.md
+*.ko.md
 
 # 파이프라인 중간 산출물
 work/

@@ -56,6 +56,9 @@ function loadWebfont(spec) {
   document.head.appendChild(l);
 }
 loadWebfont(SUIT[2]);
+/* UI 서체(Adobe Clean). 로컬에 없으면 이 웹폰트("adobe-clean")가 받는다 —
+   helpx.adobe.com 이 쓰는 킷이라 300/400/700/800/900 이 들어 있다. */
+loadWebfont("https://use.typekit.net/pps7abe.css");
 
 /* ── 설정 ────────────────────────────────────────────── */
 let settings = {};

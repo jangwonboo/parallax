@@ -31,8 +31,12 @@
   --maxw: 100%;              /* 본문 전체 폭 — 기본은 창에 꽉 채운다 */
   --toc-w: 23rem;            /* 목차가 열리면 본문이 이만큼 물러난다 */
 
-  /* UI는 한 서체로 통일한다 — 툴바·목차·사전·표시 라벨 전부 */
-  --font-ui: "SUIT Variable", "Pretendard Variable", "Pretendard",
+  /* UI는 한 서체로 통일한다 — 툴바·목차·사전·표시 라벨 전부.
+     Adobe Clean 고정 — 로컬 설치본("Adobe Clean")이 있으면 그걸 쓰고,
+     없으면 app.js 가 typekit(use.typekit.net/pps7abe.css)에서 받는
+     웹폰트("adobe-clean")로 뜬다. 라틴 전용이라 한글은 SUIT 이하가 받는다. */
+  --font-ui: "Adobe Clean", "adobe-clean",
+             "SUIT Variable", "Pretendard Variable", "Pretendard",
              -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
 
   /* 통일 조판 */

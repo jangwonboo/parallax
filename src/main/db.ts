@@ -125,21 +125,34 @@ export class Doc {
 
   meta(): T.DocMeta {
     const d = this.db.prepare("SELECT * FROM doc LIMIT 1").get() as any;
-    const c = this.db.prepare("SELECT count(*) n FROM block").get() as { n: number };
+    /* 세는 것도 보여 주는 것과 같아야 한다 — 버린 블록을 분모에 넣으면
+       전부 번역해도 진행률이 100% 에 닿지 않는다. */
+    const c = this.db
+      .prepare(`SELECT count(*) n FROM block WHERE flags & ${T.DROPPED} = 0`)
+      .get() as { n: number };
     const t = this.db
-      .prepare("SELECT count(*) n FROM block WHERE ko IS NOT NULL AND ko<>''")
+      .prepare(`SELECT count(*) n FROM block
+                WHERE ko IS NOT NULL AND ko<>'' AND flags & ${T.DROPPED} = 0`)
       .get() as { n: number };
     return { ...d, blockCount: c.n, translated: t.n };
   }
 
+  /* 리더는 버린 블록을 보여 주지 않는다.
+     `DROPPED` 는 전자책 뷰어의 쪽 표시(`Page 60 of 252 · 3%`), 러닝 헤드, 도판에서
+     뜯겨 나온 눈금 조각이다 — 원문 대조에 쓸모가 있으리라 보고 원문 칸에 남겨 뒀는데,
+     244쪽 책 하나에 184개가 본문 사이에 흩뿌려져 읽는 흐름을 끊었다. 파일에는 그대로
+     남는다(ID 불변, 되돌릴 수 있다). 보여 주지 않을 뿐이다. */
+  private readonly VISIBLE = `flags & ${T.DROPPED} = 0`;
+
   count(): number {
-    return (this.db.prepare("SELECT count(*) n FROM block").get() as any).n;
+    return (this.db.prepare(`SELECT count(*) n FROM block WHERE ${this.VISIBLE}`)
+      .get() as any).n;
   }
 
   /** 가상 스크롤용 — 인덱스 구간을 ord 순으로 */
   range(offset: number, limit: number): T.Block[] {
     return this.db
-      .prepare("SELECT * FROM block ORDER BY ord LIMIT ? OFFSET ?")
+      .prepare(`SELECT * FROM block WHERE ${this.VISIBLE} ORDER BY ord LIMIT ? OFFSET ?`)
       .all(limit, offset) as T.Block[];
   }
 
@@ -177,7 +190,8 @@ export class Doc {
         /* 목차는 늘 원문이다. 번역이 도착하는 대로 항목이 바뀌면 위치를 기억할
            수 없고, 번역된 것과 아닌 것이 섞여 목록이 두 언어로 갈린다. */
         `SELECT id, ord, type, src text
-         FROM block WHERE type IN ('h1','h2','h3') ORDER BY ord`
+         FROM block WHERE type IN ('h1','h2','h3') AND flags & ${T.DROPPED} = 0
+         ORDER BY ord`
       )
       .all()
       .map((r: any) => ({

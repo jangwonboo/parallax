@@ -25,6 +25,18 @@
 
 > **2026-08-03~04 세션분은 아직 커밋되지 않았다.** `git status` 에 열 개 남짓이 수정, `.npmrc`·`scripts/{fetch-tts-assets,rebuild-native}.mjs`·`spec-tts.md`·`src/main/tts/`·`vendor/` 가 미추적으로 떠 있다. 낭독은 선택 낭독·mp3 내보내기까지 동작한다 — 아래 「낭독」 절을 먼저 읽을 것.
 
+2026-08-04 세션 — **단락이 왜 갈려 있었는지 찾아 셋을 고쳤다.** 사용자가 「단락 경계가 무너졌다」고 해서 실제로 세어 봤다. `the_mind_is_flat.noads.parallax` 의 문장 중간 끊김은 **52곳**이었다 — 그전에 「0」이라고 보고했던 것은 틀렸다(그 검사는 같은 쪽·같은 유형만 봤다). 처음 센 153곳 중 95곳은 색인이라 오탐이었다(색인 항목은 원래 소문자로 시작하고 마침표가 없다).
+
+갈래는 셋이고 전부 **이어붙이기가 이웃을 잘못 보고 있던 문제**였다.
+
+- **버린 블록이 이음매를 끊었다**(본문 6곳). `drop` 은 지우지 않고 표시만 하는데(ID 불변) 이어붙이기가 바로 앞 블록을 `prev` 로 삼았다. 문장 한가운데에 전자책 뷰어의 `Page 60 of 252 · 3%` 가 끼면 두 반쪽이 영영 이웃이 되지 못한다. 이제 읽지 않는 블록은 이음매를 끊지 않는다(`extract.stitch_blocks` · `pagecheck.stitch_pages` · `repair.find_seams` 셋 다).
+- **주석 유형이 항목 안에서 흔들렸다**(46곳). 한 주석이 `footnote → p → quote` 로 번갈아 분류되는데 유형이 다르면 잇지 않는 규칙 탓에 주석부가 통째로 갈렸다. `BODY` 에 `footnote` 를 넣고, 대신 번호로 시작하는 곳(`starts_note`)은 새 항목으로 보아 지킨다. 합칠 때 남는 유형은 `merged_type` 이 정한다 — 캡션과 주석은 자기 자리를 지킨다(본문으로 바꾸면 흐름 한가운데로 들어온다).
+- **`is_page_progress` 가 진짜 내용을 삼켰다.** 예전 규칙은 「글자가 없고 숫자가 있으면 참」이라, 분철된 인용의 꼬리(`Journal of Nervous and Mental Dis-` 뒤의 `ease, 131(2): 135-48.`, `46.`, `80.`)를 뷰어 부속물로 지웠다. 이제 진행 표시라는 증거(`%`·page/location·`26 of 201` 꼴)를 요구하고, 판독이 뭉갠 형태(`Page 60T 252 + 3%`, `0f`)까지 잡는다. 맨 숫자 조각은 `is_bare_label` 로 갈라 냈고, **앞 블록이 하이픈으로 끊겼으면 무엇도 버리지 않는다**(`pagecheck.continues_hyphen`). `looks_garbled` 가 URL 주석을 통째로 먹던 것도 막았다.
+
+결과(실측): 문장 중간 끊김 **52 → 10**, 그중 본문은 **6 → 1**. 남은 하나는 `understand-` 뒤 낱말 꼬리가 판독에서 아예 사라진 자리라 잇지 않는 것이 맞다. 기존 파일은 `repair.py --apply --stitch-translated` 로 45쌍을 잇고(1492 → 1447 블록) 대기 44개를 앱에서 채웠다($0.18). 원본은 `.bak`.
+
+**리더가 버린 블록을 그리던 것도 고쳤다.** `DROPPED` 184개가 본문 사이에 흩뿌려져 있었다 — 쪽 대조에 쓸모가 있으리라 보고 원문 칸에 남겨 뒀는데, 실제로는 읽는 흐름만 끊었다. `db.ts` 의 `count`·`range`·`outline`·`meta` 가 전부 거른다(파일에는 그대로 남는다). 진행률 분모도 함께 고쳤다 — 버린 것을 세면 전부 번역해도 100% 에 닿지 않는다. 1492 → 1308 로 보이고, 문서를 훑어도 부속물이 없다(CDP 확인).
+
 2026-08-03~04 세션 — **낭독(TTS)을 넣기 시작했다.** 설치가 깨지던 것부터 고쳤다: `npm start` 가 `'tsc' is not recognized` 로 죽었는데 `node_modules` 자체가 비어 있었다. better-sqlite3 에 Node 24 용 미리 빌드본이 없어 소스 컴파일로 넘어가고, node-gyp 10 이 Visual Studio Build Tools 2026(v18)을 못 알아봐 npm 이 전체를 되돌린 것이다. `.npmrc` 로 네이티브 모듈을 Electron ABI 로 받게 하고(`runtime=electron`), `scripts/rebuild-native.mjs` 를 postinstall 에 걸어 「미리 빌드본 먼저, 안 되면 컴파일, 그래도 안 되면 설치는 성공시킨다」로 만들었다. 깨끗한 재설치로 확인. 그 위에 Supertonic 3(ONNX, `onnxruntime-node`)을 붙였다 — 자세한 것은 아래 절.
 
 2026-07-30 세션 — **07-28 수정분의 화면 재확인을 마쳤다.** `pagecheck_test_20p.pdf` 를 재생성해(원본 앞 20쪽, PyMuPDF — 지난 세션 것은 지워져 있었다) 앱으로 열고 「전 쪽 재판독」 전 구간을 실행($0.15). 확인된 것: ① 쪽별 진행 표시 `페이지 검증 중 · 7 / 20쪽 · 취소` 가 화면 아래 가운데에 뜬다. ② `superseded` 이관 — 시험 문서에 19행, 밀려난 원 레이어(`"Ihe Meaning or Your I ife"` 따위)가 그대로 보관됐다. ③ `page_check` 이관 21행(요약 `page=0` + 20쪽), **파일 → 페이지 검증 리포트** 가 임시 md 로 재조립해 연다(요약·쪽별 표 온전). 검증 방법: `--inspect=9229` 로 메인에 붙어 `dialog.showMessageBox` 를 패치해 자동 응답, 렌더러 CDP 로 관찰 — 스크립트는 세션 스크래치의 `drive-pagecheck.mjs`/`watch-pagecheck.mjs`. 요령 둘: CDP `Page.captureScreenshot` 은 창이 가려지면 응답하지 않는다(메인의 `webContents.capturePage()` 를 쓸 것), 번역 자동 시작은 렌더러에서 `setInterval` 로 `translate.pause(true)` 를 계속 눌러 막았다(지출 $0.00 확인). 같은 날 electron-builder 로 Windows 설치본(`Parallax Setup 0.1.0.exe`)을 처음 빌드했다 — 출력은 `release/`(`.gitignore`), 산출물은 언제든 재생성되므로 보관하지 않는다.

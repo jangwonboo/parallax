@@ -245,6 +245,7 @@ async function renderWindow() {
     rebuildTops();
     placeHandle();
     updateFocus();      // 새로 마운트된 행에도 물림을 입힌다
+    paintRange();       // 낭독 영역 표시도 마운트를 따라 되살린다
     queueTranslation(from, to);
   } finally {
     renderPending = false;
@@ -929,26 +930,63 @@ async function fillQueue() {
    (`dims: [1]`, 실측 확인). 토큰별 길이가 없어 진짜 정렬은 만들 수 없다.
    그래서 조각(문장) 경계는 **정확히** 맞추고 그 안에서만 글자 수로 나눈다 —
    문장마다 다시 맞물리므로 어긋남이 한 문장 안에 갇힌다. */
-const hl = typeof Highlight === "function" ? new Highlight() : null;
-if (hl) CSS.highlights.set("say", hl);
-const clearHL = () => hl && hl.clear();
+const HL_OK = typeof Highlight === "function" && typeof CSS !== "undefined" && CSS.highlights;
+const hlRange = HL_OK ? new Highlight() : null;   // 읽을 영역 — 옅게
+const hlWord = HL_OK ? new Highlight() : null;    // 지금 읽는 낱말 — 조금 진하게
+if (HL_OK) {
+  /* 낱말이 영역 위에 얹혀야 한다. 우선순위가 같으면 등록 순서로 갈리지만
+     명시해 두는 편이 읽는 사람에게 분명하다. */
+  hlRange.priority = 1;
+  hlWord.priority = 2;
+  CSS.highlights.set("say-range", hlRange);
+  CSS.highlights.set("say-word", hlWord);
+}
 
-function markWord(blockId, a, b) {
-  if (!hl) return;
+/** 읽을 영역 — [{blockId, a, b}]. 가상 스크롤이 행을 지웠다 만들므로 자리로만 들고 있다. */
+let sayRange = [];
+
+function clearHL() {
+  hlWord?.clear();
+  hlRange?.clear();
+}
+
+/** 블록 글의 [a,b) 를 살아 있는 DOM 범위로. 마운트돼 있지 않으면 null. */
+function domRange(blockId, a, b) {
   const row = mounted.get(blockId);
-  const cell = row && row.querySelector(source && source.side === "ko" ? ".cell.ko" : ".cell.src");
-  const node = cell && cell.firstElementChild && cell.firstElementChild.firstChild;
-  if (!node || node.nodeType !== 3) return clearHL();
+  const cell = row?.querySelector(source?.side === "ko" ? ".cell.ko" : ".cell.src");
+  const node = cell?.firstElementChild?.firstChild;
+  if (!node || node.nodeType !== 3) return null;
   const n = node.length;
-  if (a >= n) return clearHL();
+  if (a >= n || b <= a) return null;
   const r = document.createRange();
   r.setStart(node, Math.max(0, a));
   r.setEnd(node, Math.min(n, b));
-  hl.clear();
-  hl.add(r);
+  return r;
 }
 
-/** 재생 위치 → 낱말. 조각 안에서 누적 가중치로 나눈다. */
+/** 영역 표시를 다시 그린다. 스크롤로 행이 새로 붙을 때마다 불러야 한다. */
+function paintRange() {
+  if (!hlRange) return;
+  hlRange.clear();
+  for (const r of sayRange) {
+    const rg = domRange(r.blockId, r.a, r.b);
+    if (rg) hlRange.add(rg);
+  }
+}
+
+function markWord(blockId, a, b) {
+  if (!hlWord) return;
+  const rg = domRange(blockId, a, b);
+  hlWord.clear();
+  if (rg) hlWord.add(rg);
+}
+
+/** 재생 위치 → 낱말. 조각 안에서 누적 가중치로 나눈다.
+
+    Supertonic 의 duration_predictor 는 발화 **전체 길이 하나**만 내준다
+    (`dims: [1]`, 실측 확인). 토큰별 길이가 없어 진짜 정렬은 만들 수 없다.
+    그래서 조각(문장) 경계는 **정확히** 맞추고 그 안에서만 글자 수로 나눈다 —
+    문장마다 다시 맞물리므로 어긋남이 한 문장 안에 갇힌다. */
 function paintWord() {
   if (!cur || !cur.words.length || !sayAudio || !sayAudio.duration) return;
   const t = Math.min(1, sayAudio.currentTime / sayAudio.duration);
@@ -1022,6 +1060,7 @@ function resetSay(keepSource) {
   api.tts.stop();
   dropAudio();
   queue = []; ahead = null; cur = null;
+  sayRange = [];
   if (!keepSource) source = null;
 }
 
@@ -1057,6 +1096,15 @@ async function playNext(gen) {
   fillQueue().then(() => { if (gen === sayGen && queue.length) prefetch(queue[0]); });
 
   cur = { blockId: c.blockId, words: c.words, total: c.words.reduce((n, w) => n + w.w, 0) || 1 };
+  /* 이어 읽기에는 경계가 없다(여기부터 끝까지) — 그때는 지금 읽는 블록이 영역이다.
+     책 전체를 칠하면 표시가 아니라 배경이 된다. */
+  if (source.mode === "tail") {
+    const row = mounted.get(c.blockId);
+    const cell = row?.querySelector(source.side === "ko" ? ".cell.ko" : ".cell.src");
+    const len = cell?.textContent?.length ?? 0;
+    sayRange = len ? [{ blockId: c.blockId, a: 0, b: len }] : [];
+    paintRange();
+  }
   follow(c.blockId);
 
   const url = URL.createObjectURL(new Blob([r.wav], { type: "audio/wav" }));
@@ -1143,7 +1191,13 @@ function prepareFromSelection() {
     const at = Math.max(0, index.findIndex((x) => x.id === id));
     source = makeSource(side, lang, "tail", at, null);
   } else {
-    source = makeSource(side, lang, "sel", 0, segmentsFrom(sel, side, cell));
+    const segs = segmentsFrom(sel, side, cell);
+    source = makeSource(side, lang, "sel", 0, segs);
+    /* 고른 영역을 옅게 깔아 둔다 — 브라우저 선택은 다음 클릭에 사라지지만
+       「무엇을 읽을 것인가」는 재생이 끝날 때까지 보여야 한다. */
+    sayRange = segs.filter((g) => g.blockId)
+      .map((g) => ({ blockId: g.blockId, a: g.base || 0, b: (g.base || 0) + g.text.length }));
+    paintRange();
   }
   setSayPhase("ready");
   /* 첫 조각을 미리 만들어 둔다 — 누르는 순간 소리가 나야 한다. */

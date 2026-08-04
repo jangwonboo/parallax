@@ -61,6 +61,11 @@
   --accent: #3D5A80;
   --mark: #EFE6D2;
   --warn: #A8741C;
+  /* 낭독은 자기 색을 쓴다. 짝 강조(--accent)와 같은 색이면 「지금 짚은 단락」과
+     「지금 읽는 자리」가 구별되지 않는다 — 둘은 동시에 켜져 있을 수 있다.
+     청록은 이 종이색 팔레트에서 슬레이트블루와 가장 멀고, 경고(--warn)의
+     호박색과도 겹치지 않는다. */
+  --say: #1F7A63;
 }
 
 [data-theme="night"] {
@@ -72,6 +77,7 @@
   --accent: #6FA8DC;
   --mark: #2A3540;
   --warn: #C79A45;
+  --say: #5FD3AE;
 }
 
 * { box-sizing: border-box; }
@@ -426,11 +432,21 @@ body.dragging { user-select: none; cursor: col-resize; }
 @media (max-width: 900px)  { .say #sayVoice, .say #sayExport { display: none; } }
 @media (max-width: 760px)  { .say #saySpeed, .say .state { display: none; } }
 
-/* 지금 읽는 낱말. 배경만 칠하고 글자색은 건드리지 않는다 — 색까지 바꾸면
-   읽던 줄의 대비가 낱말마다 튄다. Supertonic 이 토큰별 길이를 주지 않아
-   문장 안에서는 글자 수로 나눈 추정이다(자세한 것은 spec-tts.md §14.4). */
-::highlight(say) {
-  background-color: color-mix(in srgb, var(--accent) 32%, transparent);
+/* 낭독 표시는 두 겹이다 — **읽을 영역**을 옅게 깔고 그 위에 **지금 읽는 낱말**을
+   조금 진하게 얹는다. 한 겹만 쓰면 둘 중 하나를 잃는다: 낱말만 칠하면 어디까지
+   읽을 것인지 안 보이고, 영역만 칠하면 어디를 읽고 있는지 안 보인다.
+
+   둘 다 배경만 칠하고 글자색은 건드리지 않는다 — 색까지 바꾸면 읽던 줄의 대비가
+   낱말마다 튄다. 반투명이라 겹친 자리는 저절로 더 진해진다.
+
+   낱말 자리는 추정이다. Supertonic 의 duration_predictor 는 발화 전체 길이 하나만
+   주므로(dims: [1]) 조각(문장) 경계만 정확하고 그 안은 글자 수로 나눈다 —
+   spec-tts.md §15.3. */
+::highlight(say-range) {
+  background-color: color-mix(in srgb, var(--say) 14%, transparent);
+}
+::highlight(say-word) {
+  background-color: color-mix(in srgb, var(--say) 38%, transparent);
 }
 
 /* 목차 — 본문을 덮지 않고 밀어낸다 */

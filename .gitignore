@@ -27,3 +27,10 @@ out/
 pdf-ko-translate/
 blocks.txt
 
+# Supertonic 자산 383MB. 고정 리비전으로 언제든 다시 받는다 —
+# scripts/fetch-tts-assets.mjs, 해시는 tts-assets/VERSION 에 있다.
+tts-assets/
+
+# 낭독 참고 구현이 들어온 배달 꾸러미. 내용은 이미 풀려 있다 —
+# spec-tts.md(=tts/spec.md)와 vendor/supertonic-nodejs/.
+tts.zip

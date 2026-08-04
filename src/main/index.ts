@@ -3,14 +3,18 @@ import {
 } from "electron";
 import { join, basename, dirname } from "node:path";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { Doc } from "./db";
 import { Scheduler } from "./translate/scheduler";
 import * as Imp from "./importers";
 import * as T from "../shared/types";
 import { docTitle, renderMarkdown } from "./exporter";
+import { Tts } from "./tts";
+import * as TtsAssets from "./tts/assets";
 
 const DEV = process.argv.includes("--dev");
 let win: BrowserWindow | null = null;
+const tts = new Tts((channel, payload) => emit(channel, payload));
 
 /* ── 앱 데이터 ───────────────────────────────────────── */
 const dataDir = () => {
@@ -387,6 +391,143 @@ function wireIpc() {
 
   ipcMain.handle("dict:lookup", (_e, word: string) => lookup(word));
   ipcMain.handle("export", () => doExport());
+
+  /* ── 낭독 (spec-tts.md §7.1) ─────────────────────────
+     렌더러는 오디오를 IPC 로만 받는다. 네트워크에도 파일시스템에도 나가지
+     않는 기존 원칙(dict:lookup 을 main 이 대신하는 것과 같다) 그대로다. */
+  ipcMain.handle("tts:status", () => tts.status());
+  ipcMain.handle("tts:install", () => tts.install());
+  ipcMain.handle("tts:voices", () => TtsAssets.VOICES);
+  ipcMain.handle("tts:stop", () => { tts.cancel(); });
+
+  /* ── 재생 — 청크 단위로 넘긴다 ────────────────────────
+     한 번에 다 합성하고 재생을 시작하면 긴 대목에서 한참 기다린다. 조각으로 나눠
+     첫 조각이 나오는 대로 소리를 내고 나머지는 뒤에서 만든다. 0.24배속이라
+     합성이 재생보다 네 배 빨라, 한 번 시작하면 따라잡힌다(spec-tts.md §6.1). */
+  type Job = { chunks: string[]; lang: "ko" | "en" };
+  const jobs = new Map<string, Job>();
+
+  const applyVoice = (voice?: string) => {
+    const saved = (readSettings().tts ?? {}) as Partial<import("./tts").TtsSettings>;
+    tts.setSettings({ ...saved, ...(voice ? { voice } : {}) });
+  };
+
+  ipcMain.handle("tts:plan", async (_e, req: { text: string; lang: "ko" | "en"; voice?: string }) => {
+    const text = (req?.text ?? "").trim();
+    if (!text) return null;
+    applyVoice(req.voice);
+    try {
+      const chunks = await tts.chunks(text, req.lang, true);
+      const jobId = randomUUID();
+      jobs.set(jobId, { chunks, lang: req.lang });
+      /* 이어 읽기는 블록마다 계획하므로 조금 더 들고 있는다. */
+      while (jobs.size > 8) jobs.delete(jobs.keys().next().value!);
+      /* 조각 글도 함께 돌려준다 — 렌더러가 원문 어디를 읽는 중인지 알아야
+         소리에 맞춰 낱말을 짚을 수 있다. */
+      return { jobId, count: chunks.length, chunks };
+    } catch (e: any) {
+      emit("tts:state", { phase: "error", message: e?.message ?? String(e) });
+      return null;
+    }
+  });
+
+  ipcMain.handle("tts:chunk", async (_e, req: { jobId: string; i: number }) => {
+    const job = jobs.get(req.jobId);
+    const text = job?.chunks[req.i];
+    if (!job || text === undefined) return null;
+    try {
+      const r = await tts.speak(text, job.lang);
+      return { wav: r.wav, seconds: r.seconds };
+    } catch (e: any) {
+      if (e?.name !== "Cancelled") emit("tts:state", { phase: "error", message: e?.message ?? String(e) });
+      return null;
+    }
+  });
+
+  /* ── mp3 내보내기 ────────────────────────────────────
+     쪼개는 기준은 합성 청크가 아니라 **제목**이다. 청크는 엔진 사정(문장 몇 개)이라
+     20초짜리 파일이 수십 개 나오고, 그건 사람이 듣는 단위가 아니다. 제목 경계로
+     끊으면 트랙 하나가 장 하나가 되어 오디오북처럼 쓰인다. */
+  const KBPS = 64;   // 모노 낭독은 64kbps 면 충분하다. 32분에 15MB.
+
+  const safeName = (s: string, max: number) =>
+    s.replace(/[\\/:*?"<>|]/g, " ").replace(/\s+/g, " ").trim()
+      .slice(0, max).replace(/[.,;:!?\s]+$/, "");
+  const head3 = (s: string) => safeName(s.trim().split(/\s+/).slice(0, 3).join(" "), 24);
+
+  ipcMain.handle("tts:export", async (_e, req: {
+    segments: { type: string; text: string }[]; lang: "ko" | "en"; voice?: string;
+  }) => {
+    if (!doc) return null;
+    const segs = (req?.segments ?? []).filter((s) => s.text.trim());
+    if (!segs.length) return null;
+    const isHead = (t: string) => /^h[123]$/.test(t);
+
+    /* 제목이 하나뿐이면 나눌 이유가 없다 — 트랙 한 개짜리 앨범이 된다. */
+    let tracks: { title: string | null; text: string }[];
+    if (segs.filter((s) => isHead(s.type)).length < 2) {
+      tracks = [{ title: null, text: segs.map((s) => s.text).join("\n\n") }];
+    } else {
+      const acc: { title: string | null; parts: string[] }[] = [];
+      for (const s of segs) {
+        if (isHead(s.type) || !acc.length) acc.push({ title: isHead(s.type) ? s.text : null, parts: [] });
+        acc[acc.length - 1].parts.push(s.text);
+      }
+      tracks = acc.map((t) => ({ title: t.title, text: t.parts.join("\n\n") }));
+    }
+
+    const book = safeName(docTitle(doc.meta()), 40) || "parallax";
+    const width = String(tracks.length).length;
+    const names = tracks.map((t, i) =>
+      tracks.length === 1
+        ? `${book}_${head3(t.text)}.mp3`
+        : `${book}_${String(i + 1).padStart(width, "0")}_${safeName(t.title ?? head3(t.text), 40)}.mp3`);
+
+    /* 한 개면 이름까지 고르게 하고, 여러 개면 폴더만 고르게 한다 — 파일 이름을
+       하나 받아 나머지를 옆에 흩뿌리면 무엇이 어디 생기는지 알 수 없다. */
+    let dir: string;
+    if (tracks.length === 1) {
+      const r = await dialog.showSaveDialog({
+        defaultPath: names[0], filters: [{ name: "MP3", extensions: ["mp3"] }],
+      });
+      if (r.canceled || !r.filePath) return null;
+      dir = dirname(r.filePath);
+      names[0] = basename(r.filePath).replace(/(\.mp3)?$/i, ".mp3");
+    } else {
+      const r = await dialog.showOpenDialog({
+        title: `mp3 ${tracks.length}개를 저장할 폴더`,
+        properties: ["openDirectory", "createDirectory"],
+      });
+      if (r.canceled || !r.filePaths[0]) return null;
+      dir = r.filePaths[0];
+    }
+
+    applyVoice(req.voice);
+    const written: string[] = [];
+    try {
+      for (let i = 0; i < tracks.length; i++) {
+        const chunks = await tts.chunks(tracks[i].text, req.lang, false);
+        const { mp3, seconds } = await tts.render(chunks, req.lang, KBPS, (done, total) =>
+          emit("tts:progress", {
+            phase: "export", track: i + 1, tracks: tracks.length,
+            done, total, name: names[i],
+          }));
+        writeFileSync(join(dir, names[i]), Buffer.from(mp3));
+        written.push(names[i]);
+        emit("tts:progress", {
+          phase: "export", track: i + 1, tracks: tracks.length,
+          done: chunks.length, total: chunks.length, name: names[i], seconds,
+        });
+      }
+    } catch (e: any) {
+      if (e?.name !== "Cancelled") emit("tts:state", { phase: "error", message: e?.message ?? String(e) });
+      /* 중간에 멈춰도 이미 쓴 파일은 남긴다 — 지우면 40분을 다시 기다려야 한다. */
+      if (written.length) shell.showItemInFolder(join(dir, written[written.length - 1]));
+      return { files: written, cancelled: true };
+    }
+    shell.showItemInFolder(join(dir, written[0]));
+    return { files: written, cancelled: false };
+  });
 }
 
 /* ── 사전 — renderer 는 네트워크에 직접 나가지 않는다 ── */

@@ -17,10 +17,16 @@ export function docTitle(meta: T.DocMeta): string {
  * 이유로 booktitle 영역을 없앴다. 본문은 문서의 첫 제목 블록에서 시작한다.
  *
  * 한글 쪽에서 번역이 없는 블록(원문 유지·판권면)은 원문을 그대로 쓴다.
+ *
+ * DROPPED 는 뺀다. 그건 러닝 헤드·쪽 번호이거나 도판 안에서 뜯겨 나온 글자
+ * 조각(`ZINZINZINZ`, `temporal fovea nasal eccentricity (degrees)`)이라 애초에
+ * 읽을 글이 아니다. 리더는 원문 칸에 그대로 두지만 — 쪽을 대조할 때 필요하다 —
+ * 밖으로 가져가는 글에는 자리가 없다. NO_TRANSLATE(색인·참고문헌)는 남긴다.
  */
 export function renderMarkdown(blocks: T.Block[], lang: "src" | "ko"): string {
   const out: string[] = [];
   for (const b of blocks) {
+    if (b.flags & T.DROPPED) continue;
     const text = (lang === "ko" ? b.ko || b.src : b.src || "").trim();
     if (!text) continue;
     if (MD_HEAD[b.type]) out.push(`\n${MD_HEAD[b.type]}${text}\n`);

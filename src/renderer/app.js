@@ -901,8 +901,22 @@ function wordsOf(text, base) {
   return out;
 }
 
-/** 큐에 조각이 둘은 있게 채운다. */
-async function fillQueue() {
+/** 큐에 조각이 둘은 있게 채운다.
+
+    **겹쳐 부르면 안 된다.** 고르는 순간 한 번(미리 만들어 두려고), 재생을 누를 때
+    또 한 번 불리는데, 첫 번째가 아직 `plan` 을 기다리는 동안 두 번째가 들어오면
+    `nextBlock` 이 조각을 한 번 더 꺼내 간다. 고른 것이 한 덩어리면 두 번째 호출이
+    빈손으로 돌아오고 재생은 시작하자마자 「끝」이 된다 — 모델이 처음 뜨는 1.4초
+    동안 재생을 누르면 늘 이렇게 됐다(설치본 첫 실행에서 잡았다). 진행 중인 것이
+    있으면 그것을 기다린다. */
+let filling = null;
+function fillQueue() {
+  if (filling) return filling;
+  filling = fillQueueOnce().finally(() => { filling = null; });
+  return filling;
+}
+
+async function fillQueueOnce() {
   const s = source;
   while (s && s === source && queue.length < 2) {
     const seg = await nextBlock(s);
@@ -1059,7 +1073,7 @@ function resetSay(keepSource) {
   sayGen++;
   api.tts.stop();
   dropAudio();
-  queue = []; ahead = null; cur = null;
+  queue = []; ahead = null; cur = null; filling = null;
   sayRange = [];
   if (!keepSource) source = null;
 }

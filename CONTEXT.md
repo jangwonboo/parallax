@@ -273,6 +273,8 @@ CDP 로 실행 확인(세션 스크래치의 `drive-say*.mjs`·`drive-export*.mj
 
 **`python3`는 Store 스텁.** 이 PC의 `python3.exe`는 0바이트 재파싱 지점(Microsoft Store 별칭)이다. 진짜 파이썬은 `C:\Python314\python.exe`이고 `python`으로 잡힌다. 스킬의 `run.sh`는 `python3`를 부른다.
 
+**`npm run dist` 가 `app.asar` 잠김으로 죽으면 Orca 를 의심하라.** 이 PC 에는 asar 뷰어 Orca 가 깔려 있고 `.asar` 파일 연결을 잡고 있다. 빌드가 새 `release\win-unpackedesourcespp.asar` 을 만드는 순간 **explorer.exe 가 Orca 를 띄우고**(부모가 explorer 인 것을 확인했다) 그 프로세스가 파일을 물어, 다음 빌드가 출력 폴더를 지우지 못한다. 오류 문구는 `remove … app.asar: The process cannot access the file` 이고 원인이 어디에도 안 적힌다. `taskkill /F /IM Orca.exe` 뒤에 다시 돌리면 된다. 무엇이 물고 있는지는 Restart Manager 로 알아낼 수 있다(`rstrtmgr.dll` 의 `RmStartSession`/`RmGetList` — 세션 스크래치 참조).
+
 **PowerShell 로 UTF-8 한글 파일을 건드리지 말 것.** 2026-08-02 에 `(Get-Content …) | Set-Content -Encoding utf8` 로 스킬의 `references/registers.md` 를 **되돌릴 수 없게 망가뜨렸다.** PowerShell 5.1 의 `Get-Content` 는 UTF-8 을 cp949 로 읽어 그 시점에 글자를 잃는다 — 다시 utf8 로 써도 잃은 것은 돌아오지 않고, 되돌리려는 시도는 BOM(`﻿`)과 `\x80` 만 더 남겼다. 원본은 `pdf-ko-translate.zip` 에서 꺼내 살렸다. **파일 편집은 Read/Write/Edit 도구나 파이썬으로 한다.** zip 정본이 유일한 구명줄이었다는 점도 기억할 것.
 
 **백그라운드 작업 출력을 `Select-Object -Last N` 으로 거르지 말 것.** 파이프가 전체를 버퍼링해 로그 파일이 0바이트로 남는다 — 전권 deslop 이 1117개 중 758개에서 죽었을 때 무슨 일이 있었는지 볼 수 없었다.

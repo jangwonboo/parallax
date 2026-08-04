@@ -3,6 +3,7 @@
   "productName": "Parallax",
   "version": "0.1.0",
   "description": "영문 문서를 좌우 대역으로 읽는 번역 리더",
+  "author": "jangwonboo",
   "main": "dist/main/index.js",
   "license": "MIT",
   "private": true,

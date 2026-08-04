@@ -273,7 +273,11 @@ CDP 로 실행 확인(세션 스크래치의 `drive-say*.mjs`·`drive-export*.mj
 
 **`python3`는 Store 스텁.** 이 PC의 `python3.exe`는 0바이트 재파싱 지점(Microsoft Store 별칭)이다. 진짜 파이썬은 `C:\Python314\python.exe`이고 `python`으로 잡힌다. 스킬의 `run.sh`는 `python3`를 부른다.
 
-**`npm run dist` 가 `app.asar` 잠김으로 죽으면 Orca 를 의심하라.** 이 PC 에는 asar 뷰어 Orca 가 깔려 있고 `.asar` 파일 연결을 잡고 있다. 빌드가 새 `release\win-unpackedesourcespp.asar` 을 만드는 순간 **explorer.exe 가 Orca 를 띄우고**(부모가 explorer 인 것을 확인했다) 그 프로세스가 파일을 물어, 다음 빌드가 출력 폴더를 지우지 못한다. 오류 문구는 `remove … app.asar: The process cannot access the file` 이고 원인이 어디에도 안 적힌다. `taskkill /F /IM Orca.exe` 뒤에 다시 돌리면 된다. 무엇이 물고 있는지는 Restart Manager 로 알아낼 수 있다(`rstrtmgr.dll` 의 `RmStartSession`/`RmGetList` — 세션 스크래치 참조).
+**`npm run dist` 는 산출물 잠금을 스스로 푼다.** 이 PC 에는 asar 뷰어 Orca 가 깔려 있고 `.asar` 파일 연결을 잡고 있다. 빌드가 새 `release\win-unpacked\resources\app.asar` 을 만드는 순간 **explorer.exe 가 Orca 를 띄우고**(부모가 explorer 인 것을 확인했다) 그 프로세스가 파일을 물어, 다음 빌드가 출력 폴더를 지우지 못하고 `remove … app.asar: The process cannot access the file` 로 죽었다. 오류 문구 어디에도 원인이 없다.
+
+`scripts/clean-release.mjs` 가 `electron-builder` 앞에 끼어 폴더를 비운다. 몇 번 기다려 보고(검사기가 잠깐 잡은 것이면 저절로 풀린다), 그래도 잠겨 있으면 **Restart Manager 에 누가 물고 있는지 직접 물어**(`scripts/who-locks.ps1`) 지목된 프로세스만 닫는다. 이름으로 짐작하지 않으므로 상관없는 앱을 건드리지 않고, 닫은 것은 반드시 찍는다. 연속 두 번 실행으로 확인했다.
+
+Restart Manager 를 쓸 때 물린 것 둘 — **디렉터리를 섞어 넘기면 등록이 조용히 실패해** 목록이 통째로 비어 나온다(파일만 넘길 것). 그리고 `powershell -File script -Paths a b c` 는 첫 하나만 묶고 나머지를 위치 인자로 흘려 죽으므로, 경로 목록은 **파일로** 넘긴다.
 
 **PowerShell 로 UTF-8 한글 파일을 건드리지 말 것.** 2026-08-02 에 `(Get-Content …) | Set-Content -Encoding utf8` 로 스킬의 `references/registers.md` 를 **되돌릴 수 없게 망가뜨렸다.** PowerShell 5.1 의 `Get-Content` 는 UTF-8 을 cp949 로 읽어 그 시점에 글자를 잃는다 — 다시 utf8 로 써도 잃은 것은 돌아오지 않고, 되돌리려는 시도는 BOM(`﻿`)과 `\x80` 만 더 남겼다. 원본은 `pdf-ko-translate.zip` 에서 꺼내 살렸다. **파일 편집은 Read/Write/Edit 도구나 파이썬으로 한다.** zip 정본이 유일한 구명줄이었다는 점도 기억할 것.
 

@@ -7,6 +7,7 @@ release/
 anthropic.key
 *.key
 .env
+.env.*
 
 # 작업 문서와 원본 — 원문이 전량 들어 있고 크다.
 # .parallax 는 번역이 진행될 때마다 통째로 바뀌는 SQLite 라 히스토리에 넣으면 급격히 커진다.
@@ -26,3 +27,10 @@ out/
 pdf-ko-translate/
 blocks.txt
 
+# Supertonic 자산 383MB. 고정 리비전으로 언제든 다시 받는다 —
+# scripts/fetch-tts-assets.mjs, 해시는 tts-assets/VERSION 에 있다.
+tts-assets/
+
+# 낭독 참고 구현이 들어온 배달 꾸러미. 내용은 이미 풀려 있다 —
+# spec-tts.md(=tts/spec.md)와 vendor/supertonic-nodejs/.
+tts.zip

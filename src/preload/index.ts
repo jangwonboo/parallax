@@ -43,8 +43,26 @@ const api = {
   },
   export: () => ipcRenderer.invoke("export"),
 
+  tts: {
+    status: () => ipcRenderer.invoke("tts:status"),
+    install: () => ipcRenderer.invoke("tts:install"),
+    voices: () => ipcRenderer.invoke("tts:voices"),
+    /* 고른 글이 단위다 — 선택은 블록을 가로지른다. 재생은 조각으로 나눠 받아
+       첫 조각부터 소리를 내고(plan → chunk), 내보내기는 제목 경계로 트랙을 끊는다. */
+    plan: (req: { text: string; lang: "ko" | "en"; voice?: string }) =>
+      ipcRenderer.invoke("tts:plan", req),
+    chunk: (req: { jobId: string; i: number }) => ipcRenderer.invoke("tts:chunk", req),
+    export: (req: { segments: { type: string; text: string }[]; lang: "ko" | "en"; voice?: string }) =>
+      ipcRenderer.invoke("tts:export", req),
+    stop: () => ipcRenderer.invoke("tts:stop"),
+  },
+
   on(channel: string, cb: (payload: any) => void): () => void {
-    const allowed = ["doc:opened", "block:updated", "import:progress", "stats", "keys:prompt"];
+    const allowed = [
+      "doc:opened", "block:updated", "import:progress", "stats", "keys:prompt",
+      "tts:state",     // { phase: "idle"|"loading"|"ready"|"error", message? }
+      "tts:progress",  // { got, total } — 자산 내려받기
+    ];
     if (!allowed.includes(channel)) throw new Error(`unknown channel ${channel}`);
     const h = (_e: unknown, payload: any) => cb(payload);
     ipcRenderer.on(channel, h);

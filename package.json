@@ -3,6 +3,7 @@
   "productName": "Parallax",
   "version": "0.1.0",
   "description": "영문 문서를 좌우 대역으로 읽는 번역 리더",
+  "author": "jangwonboo",
   "main": "dist/main/index.js",
   "license": "MIT",
   "private": true,
@@ -11,13 +12,15 @@
     "start": "npm run build && electron .",
     "dev": "npm run build && electron . --dev",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "rebuild": "electron-rebuild -f -w better-sqlite3",
-    "postinstall": "electron-rebuild -f -w better-sqlite3 || echo '네이티브 모듈 재빌드 실패 — npm run rebuild 를 수동 실행하세요'",
-    "dist": "npm run build && electron-builder"
+    "rebuild": "node scripts/rebuild-native.mjs",
+    "postinstall": "node scripts/rebuild-native.mjs",
+    "dist": "npm run build && node scripts/clean-release.mjs && electron-builder"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
-    "better-sqlite3": "^11.5.0"
+    "@breezystack/lamejs": "^1.2.7",
+    "better-sqlite3": "^11.5.0",
+    "onnxruntime-node": "^1.27.0"
   },
   "devDependencies": {
     "@electron/rebuild": "^3.7.0",
@@ -29,14 +32,35 @@
   },
   "build": {
     "appId": "fo.parallax.reader",
-    "directories": { "output": "release" },
-    "files": ["dist/**", "package.json"],
-    "extraResources": ["resources/**"],
-    "mac": { "category": "public.app-category.productivity", "target": "dmg" },
-    "win": { "target": "nsis" },
-    "linux": { "target": "AppImage" },
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "**/node_modules/onnxruntime-node/**"
+    ],
+    "extraResources": [
+      "resources/**"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": "dmg"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    },
     "fileAssociations": [
-      { "ext": "parallax", "name": "Parallax 문서", "role": "Editor" }
+      {
+        "ext": "parallax",
+        "name": "Parallax 문서",
+        "role": "Editor"
+      }
     ]
   }
 }

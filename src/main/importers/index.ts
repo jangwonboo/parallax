@@ -260,28 +260,39 @@ export async function extractPdf(
 export interface PagecheckOptions {
   /** layer = 글자는 텍스트 레이어가 정답, 구조만 이미지로 고친다. vision = 전 쪽 재판독. */
   trust: "layer" | "vision";
-  /** vision = Claude 비전 모델(쪽당 과금). chandra = 로컬 Chandra OCR(무료, GPU·vllm
-      서버 필요) — 항상 전 쪽 재판독으로 동작하며 trust 는 무시된다. */
-  engine: "vision" | "chandra";
-  /** chandra 엔진은 키가 필요 없다 — 빈 문자열이면 넘기지 않는다. */
+  /** vision = Claude 비전 모델(쪽당 과금). datalab = Datalab API 의 호스팅 Chandra
+      OCR(쪽당 과금, GPU 불필요) — 항상 전 쪽 재판독으로 동작하며 trust 는 무시된다. */
+  engine: "vision" | "datalab";
+  /** Anthropic 키. datalab 엔진에는 필요 없다 — 빈 문자열이면 넘기지 않는다. */
   apiKey: string;
+  /** Datalab 키. datalab 엔진일 때만 쓴다. */
+  datalabKey?: string;
   /** "1-20" 처럼 일부만. 시험 삼아 돌려 볼 때 쓴다. */
   pages?: string;
 }
 
-/** Chandra OCR(datalab-to/chandra)이 파이썬에 깔려 있는가. import 는 torch 까지
-    끌어 무거우니 find_spec 으로 설치 여부만 본다. 세션당 한 번 — 설치 직후에는
-    앱을 다시 시작해야 보인다. */
-let chandraCache: boolean | undefined;
-export function hasChandra(): boolean {
-  if (chandraCache !== undefined) return chandraCache;
-  const py = findPython();
-  if (!py) return (chandraCache = false);
-  const r = spawnSync(
-    py,
-    ["-c", "import importlib.util as u,sys;sys.exit(0 if u.find_spec('chandra') else 1)"],
-    { encoding: "utf8", timeout: 5000, windowsHide: true });
-  return (chandraCache = r.status === 0);
+const DATALAB_PLACEHOLDER = "your-datalab-api-key-here";
+
+/** Datalab API 키 — 환경변수, 없으면 .env(앱 cwd → 스킬 폴더의 부모)에서 읽는다.
+    파이썬 쪽(pagecheck.py)도 같은 순서로 찾지만, 패키징된 앱은 cwd 가 달라질 수
+    있어 여기서 읽어 환경변수로 명시적으로 넘긴다. 자리표시자 값은 없는 것으로 친다. */
+export function readDatalabKey(skillDir?: string | null): string | null {
+  const clean = (v?: string | null) => {
+    const s = (v ?? "").trim().replace(/^["']|["']$/g, "");
+    return s && s !== DATALAB_PLACEHOLDER ? s : null;
+  };
+  const fromEnv = clean(process.env.DATALAB_API_KEY);
+  if (fromEnv) return fromEnv;
+  const cands = [join(process.cwd(), ".env")];
+  if (skillDir) cands.push(join(skillDir, "..", ".env"));
+  for (const f of cands) {
+    try {
+      const m = /^\s*DATALAB_API_KEY\s*=\s*(.+?)\s*$/m.exec(readFileSync(f, "utf8"));
+      const v = clean(m?.[1]);
+      if (v) return v;
+    } catch { /* .env 는 없어도 된다 */ }
+  }
+  return null;
 }
 
 /**
@@ -299,11 +310,13 @@ export async function pagecheckPdf(
   onProgress: (p: T.ImportProgress) => void
 ): Promise<void> {
   const args = [ex.book, "--pdf", pdfPath, "--engine", opts.engine];
-  /* chandra 는 전 쪽 재판독 고정이라 --trust 가 무의미하다. */
+  /* datalab 은 전 쪽 재판독 고정이라 --trust 가 무의미하다. */
   if (opts.engine === "vision") args.push("--trust", opts.trust);
   if (opts.pages) args.push("--pages", opts.pages);
-  await runPy(join(skillDir, "scripts", "pagecheck.py"), args,
-    opts.apiKey ? { ANTHROPIC_API_KEY: opts.apiKey } : null, (line) => {
+  const env: Record<string, string> = {};
+  if (opts.engine === "vision" && opts.apiKey) env.ANTHROPIC_API_KEY = opts.apiKey;
+  if (opts.engine === "datalab" && opts.datalabKey) env.DATALAB_API_KEY = opts.datalabKey;
+  await runPy(join(skillDir, "scripts", "pagecheck.py"), args, env, (line) => {
       /* _llm.progress() 가 내는 `[12/191] 6% pages read` */
       const m = /^\[(\d+)\/(\d+)\]/.exec(line);
       onProgress({

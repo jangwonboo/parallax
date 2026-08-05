@@ -220,15 +220,15 @@ async function planPagecheck(
   if (readSettings().pagecheck === "off") return null;
   if (!Imp.hasPagecheck(skill) || !ex.pages) return null;
   const apiKey = readKey();
-  const chandra = Imp.hasChandra();
-  if (!apiKey && !chandra) return null;   // 쓸 수 있는 엔진이 하나도 없다
+  const datalabKey = Imp.readDatalabKey(skill);
+  if (!apiKey && !datalabKey) return null;   // 쓸 수 있는 엔진이 하나도 없다
 
   /* 어느 쪽을 권할지는 알려 주되 고르는 것은 감추지 않는다. 모드마다 하는 일이
      다르고, 잘못 고르면 되돌릴 수 없다 — 재판독은 멀쩡한 원문의 고어 철자를
      현대화하고 저자의 의도적 오기를 고쳐 버린다.
 
-     버튼은 쓸 수 있는 엔진으로만 조립한다 — 키가 없으면 Claude 두 모드가 빠지고,
-     Chandra 가 파이썬에 없으면 로컬 재판독이 빠진다. */
+     버튼은 쓸 수 있는 엔진으로만 조립한다 — Anthropic 키가 없으면 Claude 두 모드가
+     빠지고, Datalab 키(.env 의 DATALAB_API_KEY)가 없으면 Datalab 재판독이 빠진다. */
   const usd = (ex.pages * VISION_USD_PER_PAGE).toFixed(2);
   const buttons = ["건너뛰기"];
   const plans: (Imp.PagecheckOptions | null)[] = [null];
@@ -237,11 +237,12 @@ async function planPagecheck(
     plans.push({ trust: "layer", engine: "vision", apiKey },
                { trust: "vision", engine: "vision", apiKey });
   }
-  if (chandra) {
-    buttons.push("전 쪽 재판독 (Chandra·로컬)");
-    plans.push({ trust: "vision", engine: "chandra", apiKey: apiKey ?? "" });
+  if (datalabKey) {
+    buttons.push("전 쪽 재판독 (Datalab API)");
+    plans.push({ trust: "vision", engine: "datalab", apiKey: apiKey ?? "", datalabKey });
   }
-  /* 레이어가 판독 산출물이면 재판독을 권한다 — 키가 있으면 Claude, 없으면 Chandra. */
+  /* 레이어가 판독 산출물이면 재판독을 권한다 — Anthropic 키가 있으면 Claude,
+     없으면 Datalab. */
   const recommendId = ex.ocrLayer ? (apiKey ? 2 : 1) : (apiKey ? 1 : 0);
 
   const r = await dialog.showMessageBox(win!, {
@@ -264,9 +265,9 @@ async function planPagecheck(
           "전 쪽 재판독: 모든 쪽을 이미지에서 다시 받아씁니다. 표지 조각과 판독 오류를 " +
           "걷어내지만, 판독 모델은 고어 철자를 현대화하고 저자의 의도적 오기를 고칩니다.\n"
         : "Anthropic API 키가 없어 Claude 엔진(구조만 대조·전 쪽 재판독)은 쓸 수 없습니다.\n") +
-      (chandra
-        ? "Chandra·로컬: 모든 쪽을 로컬 Chandra OCR 모델로 다시 받아씁니다. 무료지만 " +
-          "GPU(또는 chandra_vllm 서버)가 필요하고, 역시 판독 텍스트로 갈아끼웁니다.\n"
+      (datalabKey
+        ? "Datalab API: 모든 쪽을 Datalab 의 호스팅 Chandra OCR 로 다시 받아씁니다. " +
+          "Datalab 크레딧으로 쪽당 과금되며, 역시 판독 텍스트로 갈아끼웁니다.\n"
         : "") +
       "\n건너뛰면 추출한 그대로 열립니다. 몇 분 걸리며 도중에 멈출 수 있습니다.",
   });

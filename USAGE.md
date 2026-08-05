@@ -34,13 +34,13 @@ npx electron . "D:\projects\parallax\the_meaning_of_your_life_v2.parallax"
 | 건너뛰기 | 추출한 그대로 연다. 표지 조각이 목차에 섞이고 판독 오류가 남는다. |
 | 구조만 대조 | `--trust layer`. 글자는 텍스트 레이어 그대로, 제목·순서·누락만 쪽 이미지로 고친다. |
 | 전 쪽 재판독 | `--trust vision`. 모든 쪽을 Claude 비전 모델이 이미지에서 다시 받아쓴다(쪽당 과금). |
-| 전 쪽 재판독 (Chandra·로컬) | `--engine chandra`. 모든 쪽을 로컬 [Chandra](https://github.com/datalab-to/chandra) OCR 모델이 다시 받아쓴다. 무료·키 불필요, 대신 GPU(`pip install chandra-ocr[hf]`) 또는 `chandra_vllm` 서버가 필요하다. 파이썬에 chandra 가 설치돼 있을 때만 버튼이 보인다. |
+| 전 쪽 재판독 (Datalab API) | `--engine datalab`. 모든 쪽을 [Datalab API](https://www.datalab.to)의 호스팅 Chandra OCR 이 다시 받아쓴다(Datalab 크레딧으로 쪽당 과금). `.env` 의 `DATALAB_API_KEY` 가 설정돼 있을 때만 버튼이 보인다 — `.env.example` 을 `.env` 로 복사해 키를 넣는다. |
 
 기본 선택은 추출이 판정한 텍스트 레이어의 성격을 따른다 — 쪽이 통째로 이미지인 OCR 샌드위치이거나 한글 글리프가 섞여 있으면 「전 쪽 재판독」, 아니면 「구조만 대조」. 판정 결과는 `book.json` 의 `meta.ocr_layer` 이고 추출 로그에도 찍힌다.
 
 돌아가는 동안 화면 아래 가운데에 `페이지 검증 중 · 47 / 191쪽 · 취소` 가 뜬다. **취소해도 문서는 열린다** — `pagecheck.py` 는 끝까지 간 다음에야 `book.json` 을 덮어쓰므로 중간에 멈추면 추출 직후 상태 그대로다. 검증이 실패했을 때도 마찬가지로 추출본으로 연다.
 
-API 키가 없으면 Claude 모드 두 개는 버튼에서 빠지고, Chandra 까지 없으면 묻지 않고 건너뛴다. 아예 묻지 않게 하려면 대화상자의 「다음부터 묻지 말고 건너뛰기」나 **파일 → PDF 열 때 페이지 검증 묻기** 를 끈다.
+Anthropic 키가 없으면 Claude 모드 두 개는 버튼에서 빠지고, Datalab 키까지 없으면 묻지 않고 건너뛴다. 아예 묻지 않게 하려면 대화상자의 「다음부터 묻지 말고 건너뛰기」나 **파일 → PDF 열 때 페이지 검증 묻기** 를 끈다.
 
 ### 조판 조절
 

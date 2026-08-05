@@ -324,7 +324,8 @@ async function openPath(path: string) {
             { title: r.title, author: r.author, sourcePath: path, sourceKind: "pdf", pages: r.pages },
             r.blocks,
             r.superseded,
-            r.pageCheck
+            r.pageCheck,
+            r.assets
           )
         );
       } finally {
@@ -345,6 +346,9 @@ async function openPath(path: string) {
     meta,
     outline: doc!.outline(),
     heights: doc!.heights(),
+    /* 그림 목록(데이터 제외) — 렌더러가 마운트 전 높이를 실제 비율로 추정한다.
+       데이터는 blocks 처럼 스크롤이 닿을 때 asset:get 으로 받는다. */
+    assets: doc!.assetsMeta(),
     sourceChanged: doc!.sourceChanged(),
     hasKey: sched!.hasKey(),
   });
@@ -378,6 +382,7 @@ function wireIpc() {
   ipcMain.handle("blocks:outline", () => doc?.outline() ?? []);
   ipcMain.handle("blocks:setHeights", (_e, pairs: [string, number][]) => doc?.setHeights(pairs));
   ipcMain.handle("blocks:clearHeights", () => doc?.clearHeights());
+  ipcMain.handle("asset:get", (_e, id: string) => doc?.asset(id) ?? null);
   ipcMain.handle("blocks:reset", (_e, ids: string[]) => {
     doc?.resetBlocks(ids);
     emit("block:updated", { ids });

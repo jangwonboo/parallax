@@ -235,6 +235,21 @@ body.sel-src .cell.ko, body.sel-ko .cell.src { user-select: none; }
   --blockgap: calc(var(--leading) * var(--para-k) * 1em);
 }
 
+/* 그림 — 번역 상대가 없으므로 행을 좌우로 가르지 않는다. 여백은 본문 한 단락과
+   같은 규칙이되 최소 반 줄은 준다(단락간격 「없음」에서 그림이 글에 붙지 않게). */
+.row-figure { grid-template-columns: 1fr; }
+.row-figure .cell {
+  --blockgap: max(calc(var(--leading) * var(--para-k) * 1em), .8em);
+  --blockgap-b: .3em;
+  text-align: center; text-indent: 0;
+}
+.row-figure img {
+  /* 양쪽 다 auto 라야 max 제약이 비율을 지키며 줄인다 — width 속성값이 살아
+     있으면 max-height 만 눌려 그림이 옆으로 퍼진다. */
+  width: auto; height: auto; max-width: 100%; max-height: 78vh;
+}
+[data-theme="dark"] .row-figure img { filter: brightness(.88); }
+
 .row-h1 .cell { --blockgap: 3.2rem; --blockgap-b: 1.1rem; }
 .row-h2 .cell { --blockgap: 2.2rem; --blockgap-b: .7rem; }
 .row-h3 .cell { --blockgap: 1.4rem; --blockgap-b: .4rem; }

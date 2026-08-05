@@ -1,6 +1,6 @@
 /** `.parallax` 포맷 — spec.md §2.2. 스키마를 바꿀 때 여기와 스펙을 함께 고친다. */
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2; // v2: asset 테이블 + figure 블록 유형
 export const ORD_STEP = 1024;
 
 /** block.state */
@@ -18,7 +18,9 @@ export const NO_TRANSLATE = 1 << 4;
 export const DROPPED = 1 << 5;
 
 export type BlockType =
-  | "h1" | "h2" | "h3" | "p" | "quote" | "figcaption" | "footnote" | "table_raw";
+  | "h1" | "h2" | "h3" | "p" | "quote" | "figcaption" | "footnote" | "table_raw"
+  /* 그림. src 는 본문이 아니라 asset 테이블의 id 다 — 번역 대상이 아니다. */
+  | "figure";
 
 export interface Block {
   id: string;
@@ -56,6 +58,15 @@ export interface DocSummary {
   progress_read: number;
   progress_translated: number;
   last_opened_at: number;
+}
+
+/** asset 행에서 데이터를 뺀 것 — 렌더러가 높이 추정과 alt 에 쓴다. */
+export interface AssetMeta {
+  id: string;
+  mime: string;
+  w: number;
+  h: number;
+  alt: string | null;
 }
 
 export interface Heading {

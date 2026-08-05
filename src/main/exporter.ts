@@ -21,6 +21,12 @@ export function docTitle(meta: T.DocMeta): string {
 export function renderMarkdown(blocks: T.Block[], lang: "src" | "ko"): string {
   const out: string[] = [];
   for (const b of blocks) {
+    /* 그림의 src 는 asset id 다. md 는 텍스트 스냅샷이므로 그림 데이터는 싣지
+       않고 자리만 남긴다 — 되찾을 곳은 .parallax 의 asset 테이블이다. */
+    if (b.type === "figure") {
+      out.push(`\n![그림](asset:${b.src})\n`);
+      continue;
+    }
     const text = (lang === "ko" ? b.ko || b.src : b.src || "").trim();
     if (!text) continue;
     if (MD_HEAD[b.type]) out.push(`\n${MD_HEAD[b.type]}${text}\n`);

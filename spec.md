@@ -101,7 +101,7 @@
 
 - 실체는 SQLite 3 데이터베이스다. 첫 16바이트가 `SQLite format 3\0`이다.
 - 확장자만 `.parallax`로 바꿔 쓴다. 별도 매직 헤더를 두지 않는다 — 어떤 SQLite 도구로도 열려야 진단이 쉽다.
-- 버전은 `doc.schema_version` 정수 하나. 현재 **1**.
+- 버전은 `doc.schema_version` 정수 하나. 현재 **2** (v2: `asset` 테이블과 `figure` 블록 유형 추가).
 - 앱은 자신이 아는 버전보다 높은 파일을 열지 않고 안내만 한다. 낮은 파일은 마이그레이션한다.
 
 #### doc — 문서 한 건 (항상 1행)
@@ -131,7 +131,7 @@ CREATE TABLE block (
   id         TEXT PRIMARY KEY,   -- b0042, b0042a — 영구 불변
   ord        INTEGER NOT NULL,   -- 읽기 순서. 1024 간격 희소 배치
   page       INTEGER,            -- 원본 쪽번호. md/txt는 NULL
-  type       TEXT NOT NULL,      -- h1 h2 h3 p quote figcaption footnote table_raw
+  type       TEXT NOT NULL,      -- h1 h2 h3 p quote figcaption footnote table_raw figure
   src        TEXT NOT NULL,      -- 영어 원문. 비어 있을 수 없다
   ko         TEXT,               -- 한국어 번역. 미번역이면 NULL
   ko_raw     TEXT,               -- deslop 이전 번역. 없으면 NULL
@@ -146,6 +146,8 @@ CREATE INDEX block_page  ON block(page);
 ```
 
 `src`와 `ko`가 **같은 행**에 있다는 것이 이 포맷의 핵심이다. 병렬 대역 화면의 한 줄이 곧 한 행이고, 블록 ID가 둘을 묶는 유일한 키다.
+
+`type='figure'`만 예외다 — `src`는 본문이 아니라 `asset.id`이고, `ko`는 늘 NULL, `flags`에 `NO_TRANSLATE`가 선다. 리더는 한 행을 좌우로 가르지 않고 그림 하나로 그린다.
 
 **`state`**
 
@@ -179,6 +181,21 @@ CREATE TABLE superseded (
 ```
 
 페이지 재구성(`REBUILT`)은 텍스트 레이어를 판독 텍스트로 갈아치우는 유일한 경로다. 밀려난 원문은 그 페이지의 **유일한 문자 정확 기록**이므로 버리지 않고 여기 남긴다. 재구성이 잘못됐다고 판단되면 여기서 되살린다.
+
+#### asset — 그림 원본 (v2)
+
+```sql
+CREATE TABLE asset (
+  id   TEXT PRIMARY KEY,         -- Datalab 이 붙인 콘텐츠 해시 기반 이름
+  mime TEXT NOT NULL,            -- image/jpeg | image/png
+  w    INTEGER,                  -- 픽셀 크기. 리더의 높이 추정에 쓴다
+  h    INTEGER,
+  alt  TEXT,                     -- 판독 모델이 쓴 그림 설명. 본문이 아니라 접근성용
+  data BLOB NOT NULL
+);
+```
+
+Datalab 재판독(`--engine datalab`)이 쪽에서 잘라 보낸 그림이다. `figure` 블록의 `src`가 `id`를 가리킨다. 파일 하나로 옮겨 다니는 것이 `.parallax`의 핵심 가치라 사이드카 폴더가 아니라 BLOB 으로 안에 넣는다.
 
 #### glossary — 확정 역어
 

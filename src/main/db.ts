@@ -23,6 +23,10 @@ CREATE INDEX IF NOT EXISTS block_state ON block(state, ord);
 CREATE INDEX IF NOT EXISTS block_page  ON block(page);
 
 CREATE TABLE IF NOT EXISTS superseded (page INTEGER PRIMARY KEY, payload TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS asset (
+  id TEXT PRIMARY KEY, mime TEXT NOT NULL, w INTEGER, h INTEGER, alt TEXT,
+  data BLOB NOT NULL
+);
 CREATE TABLE IF NOT EXISTS glossary (
   en TEXT PRIMARY KEY, ko TEXT NOT NULL, kind TEXT, locked INTEGER DEFAULT 0
 );
@@ -73,7 +77,10 @@ export class Doc {
     superseded?: Record<string, unknown[]>,
     /* pagecheck 판정. 리포트 파일은 임시 폴더와 함께 지워지므로 여기 못 넣으면
        쪽당 비전 호출로 산 근거가 사라진다. 요약은 page=0 행. */
-    pageCheck?: T.PageCheck | null
+    pageCheck?: T.PageCheck | null,
+    /* Datalab 재판독이 잘라 보낸 그림. figure 블록의 src 가 여기 id 를 가리킨다.
+       스킬 export.py 와 같은 이관이다 — 한쪽을 고치면 다른 쪽도. */
+    assets?: Record<string, { mime: string; w: number; h: number; alt?: string; b64: string }>
   ): Doc {
     const db = new Database(path);
     db.exec(DDL);
@@ -94,12 +101,17 @@ export class Doc {
        VALUES (?,?,?,?,?,0,?,?)`
     );
     const sup = db.prepare("INSERT INTO superseded(page,payload) VALUES (?,?)");
+    const insAsset = db.prepare(
+      "INSERT INTO asset(id,mime,w,h,alt,data) VALUES (?,?,?,?,?,?)");
     db.transaction(() => {
       blocks.forEach((b, i) =>
         ins.run(b.id, (i + 1) * T.ORD_STEP, b.page ?? null, b.type, b.src, b.flags ?? 0, now)
       );
       for (const [pg, items] of Object.entries(superseded ?? {})) {
         sup.run(parseInt(pg, 10), JSON.stringify(items));
+      }
+      for (const [aid, a] of Object.entries(assets ?? {})) {
+        insAsset.run(aid, a.mime, a.w, a.h, a.alt ?? null, Buffer.from(a.b64, "base64"));
       }
       if (pageCheck) {
         const pc = db.prepare(
@@ -114,6 +126,23 @@ export class Doc {
       }
     })();
     return new Doc(db, path);
+  }
+
+  /** 그림 목록(데이터 제외). 렌더러가 문서를 열 때 한 번 받아 높이 추정에 쓴다. */
+  assetsMeta(): T.AssetMeta[] {
+    return this.db
+      .prepare("SELECT id,mime,w,h,alt FROM asset")
+      .all() as T.AssetMeta[];
+  }
+
+  /** 그림 데이터. 렌더러가 data URI 로 만들어 <img> 에 건다. */
+  asset(id: string): (T.AssetMeta & { b64: string }) | null {
+    const r = this.db
+      .prepare("SELECT id,mime,w,h,alt,data FROM asset WHERE id=?")
+      .get(id) as any;
+    if (!r) return null;
+    const { data, ...meta } = r;
+    return { ...meta, b64: Buffer.from(data).toString("base64") };
   }
 
   /** pagecheck 판정 행. page=0 이 요약, 없으면 검증 없이 연 문서다. */

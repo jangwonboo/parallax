@@ -87,10 +87,26 @@ let index = [];                      // [{id,type,h}] 전체 순서. 높이 계�
 let firstMounted = 0, lastMounted = -1;
 const WINDOW_PAD = 2.5;              // 화면 배수만큼 위아래로 더 마운트
 
-const FROM_OCR = 1, NEEDS_REVIEW = 8;
+const FROM_OCR = 1, NEEDS_REVIEW = 8, NO_TRANSLATE = 16, DROPPED = 32;
 
-function estimate(b) {
-  return heights[b.id] || estimates[b.type] || 140;
+/* 그림 목록(id → {mime,w,h,alt}). 데이터는 스크롤이 닿을 때 asset:get 으로. */
+let assetMeta = new Map();
+const assetData = new Map();         // id -> Promise<dataURI|null>
+
+function estimateOf(it) {
+  /* 그림은 상수 추정이 필요 없다 — 픽셀 크기를 아니까 표시 폭에서 정확히 나온다.
+     CSS(max-width 100% · max-height 78vh)와 같은 식이어야 한다. */
+  if (it.type === "figure") {
+    const a = assetMeta.get(loaded.get(it.id)?.src);
+    if (a?.w && a?.h) {
+      const pad = parseFloat(getComputedStyle(doc).paddingLeft) || 0;
+      const availW = Math.max(160, doc.clientWidth - pad * 2);
+      /* CSS 의 max-width 100% · max-height 78vh 와 같은 축소 규칙(비율 유지) */
+      const scale = Math.min(availW / a.w, (innerHeight * 0.78) / a.h, 1);
+      return Math.round(a.h * scale);
+    }
+  }
+  return estimates[it.type] || 140;
 }
 
 /* 실측할 수 없는(마운트되지 않은) 블록의 높이를 조판에서 되짚는다.
@@ -147,10 +163,35 @@ function findIndexAt(y) {
 /* ── 행 렌더 ─────────────────────────────────────────── */
 const TAG = { h1: "h1", h2: "h2", h3: "h3", quote: "blockquote" };
 
+function fetchAsset(id) {
+  if (!assetData.has(id)) {
+    assetData.set(id, api.asset.get(id).then(
+      (a) => (a ? `data:${a.mime};base64,${a.b64}` : null)));
+  }
+  return assetData.get(id);
+}
+
 function makeRow(b) {
   const row = document.createElement("div");
   row.className = `row row-${b.type}`;
   row.dataset.id = b.id;
+
+  /* 그림 — 번역 상대가 없으므로 행을 좌우로 가르지 않는다. src 는 asset id. */
+  if (b.type === "figure") {
+    const cell = document.createElement("div");
+    cell.className = "cell fig";
+    const img = document.createElement("img");
+    const a = assetMeta.get(b.src);
+    if (a?.w && a?.h) { img.width = a.w; img.height = a.h; }
+    img.alt = a?.alt || "";
+    fetchAsset(b.src).then((uri) => {
+      if (uri) img.src = uri;
+      img.onload = () => { measure(); rebuildTops(); };
+    });
+    cell.appendChild(img);
+    row.appendChild(cell);
+    return row;
+  }
 
   const tag = TAG[b.type] || "p";
   const cls = b.type === "footnote" || b.type === "figcaption" ? ` class="${b.type}"` : "";
@@ -278,6 +319,8 @@ function queueTranslation(from, to) {
     for (let i = from; i <= to; i++) {
       const b = loaded.get(index[i].id);
       if (!b || b.ko) continue;
+      /* 번역 제외 블록(그림·색인·머리글)은 요청 자체를 보내지 않는다 */
+      if (b.flags & (NO_TRANSLATE | DROPPED)) continue;
       (i >= vf && i <= vt ? p0 : p1).push(b.id);
     }
     if (p0.length) api.translate.request(p0, 0);
@@ -287,7 +330,8 @@ function queueTranslation(from, to) {
 
 /* ── 분할 손잡이 ─────────────────────────────────────── */
 function placeHandle() {
-  const row = doc.querySelector(".row");
+  /* 그림 행은 한 칸짜리다 — 표지 그림이 첫 행이면 손잡이가 사라진다 */
+  const row = doc.querySelector(".row:not(.row-figure)");
   if (!row || row.children.length < 2) { handle.style.display = "none"; return; }
   const a = row.children[0].getBoundingClientRect();
   const c = row.children[1].getBoundingClientRect();
@@ -361,7 +405,7 @@ function invalidateHeights() {
     heights = Object.create(null);
     api.blocks.clearHeights();
     recomputeEstimates();
-    for (const it of index) it.h = estimates[it.type] || 140;
+    for (const it of index) it.h = estimateOf(it);
     measure();
     rebuildTops();
     await renderWindow();
@@ -665,9 +709,11 @@ api.on("doc:opened", async (e) => {
   total = meta.blockCount;
   loaded.clear();
 
+  assetMeta = new Map((e.assets || []).map((a) => [a.id, a]));
+  assetData.clear();
   const all = await api.blocks.range(0, total);
   for (const b of all) loaded.set(b.id, b);
-  index = all.map((b) => ({ id: b.id, type: b.type, h: heights[b.id] || estimates[b.type] || 140 }));
+  index = all.map((b) => ({ id: b.id, type: b.type, h: heights[b.id] || estimateOf(b) }));
 
   toc.innerHTML = outline.length
     ? outline.map((h) => `<a href="#" data-id="${h.id}" data-level="${h.level}">${
@@ -711,7 +757,7 @@ api.on("doc:opened", async (e) => {
   /* 첫 렌더로 칸 폭이 정해진 뒤라야 추정치를 제대로 계산할 수 있다.
      실측된 블록은 건드리지 않는다. */
   recomputeEstimates();
-  for (const it of index) if (!heights[it.id]) it.h = estimates[it.type] || 140;
+  for (const it of index) if (!heights[it.id]) it.h = estimateOf(it);
   rebuildTops();
 
   renderStats(await api.translate.stats());
@@ -724,6 +770,7 @@ api.on("block:updated", async ({ ids }) => {
     const el = mounted.get(b.id);
     if (!el) continue;
     const ko = el.querySelector(".cell.ko");
+    if (!ko) continue; // 그림 행에는 번역 칸이 없다
     const tag = TAG[b.type] || "p";
     ko.innerHTML = `<${tag}></${tag}>`;
     ko.firstChild.textContent = b.ko || "";

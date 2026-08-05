@@ -17,6 +17,10 @@ const api = {
     clearHeights: () => ipcRenderer.invoke("blocks:clearHeights"),
     reset: (ids: string[]) => ipcRenderer.invoke("blocks:reset", ids),
   },
+  asset: {
+    /** 그림 데이터 — 렌더러가 data URI 로 만들어 <img> 에 건다. */
+    get: (id: string) => ipcRenderer.invoke("asset:get", id),
+  },
   translate: {
     request: (ids: string[], priority: 0 | 1 | 2 | 3) =>
       ipcRenderer.invoke("tr:request", ids, priority),

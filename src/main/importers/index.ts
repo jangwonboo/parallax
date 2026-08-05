@@ -335,6 +335,8 @@ export function readExtraction(ex: Extraction): {
   superseded: Record<string, unknown[]>;
   /** pagecheck 판정. 리포트 md 는 임시 폴더와 함께 지워지므로 이것이 유일한 사본. */
   pageCheck: T.PageCheck | null;
+  /** Datalab 재판독이 잘라 보낸 그림. figure 블록의 src 가 여기 id 를 가리킨다. */
+  assets: Record<string, { mime: string; w: number; h: number; alt?: string; b64: string }>;
 } {
   let j: any;
   try {
@@ -350,6 +352,7 @@ export function readExtraction(ex: Extraction): {
        스킬의 export.py 도 같은 것을 .parallax 로 옮긴다. */
     superseded: j.superseded ?? {},
     pageCheck: j.page_check ?? null,
+    assets: j.assets ?? {},
     blocks: j.blocks.map((b: any) => ({
       id: b.id,
       page: b.page ?? null,

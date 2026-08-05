@@ -95,14 +95,14 @@ const assetData = new Map();         // id -> Promise<dataURI|null>
 
 function estimateOf(it) {
   /* 그림은 상수 추정이 필요 없다 — 픽셀 크기를 아니까 표시 폭에서 정확히 나온다.
-     CSS(max-width 100% · max-height 78vh)와 같은 식이어야 한다. */
+     CSS 의 max-width 60%(칸 기준, 축소만·비율 유지)와 같은 식이어야 한다. */
   if (it.type === "figure") {
     const a = assetMeta.get(loaded.get(it.id)?.src);
     if (a?.w && a?.h) {
-      const pad = parseFloat(getComputedStyle(doc).paddingLeft) || 0;
-      const availW = Math.max(160, doc.clientWidth - pad * 2);
-      /* CSS 의 max-width 100% · max-height 78vh 와 같은 축소 규칙(비율 유지) */
-      const scale = Math.min(availW / a.w, (innerHeight * 0.78) / a.h, 1);
+      const cell = doc.querySelector(".cell.src");
+      const paneW = cell ? cell.getBoundingClientRect().width
+                         : Math.max(160, doc.clientWidth / 2);
+      const scale = Math.min((paneW * 0.6) / a.w, 1);
       return Math.round(a.h * scale);
     }
   }
@@ -181,20 +181,24 @@ function makeRow(b) {
   row.className = `row row-${b.type}`;
   row.dataset.id = b.id;
 
-  /* 그림 — 번역 상대가 없으므로 행을 좌우로 가르지 않는다. src 는 asset id. */
+  /* 그림 — 원문·번역 양쪽 칸에 같은 그림을 하나씩 둔다. 한쪽에만 두거나 행을
+     통째로 쓰면 반대쪽 대역을 읽던 눈이 그림을 놓친다. src 는 asset id 이고,
+     데이터는 한 번만 받아(fetchAsset 캐시) 두 <img> 가 나눠 쓴다. */
   if (b.type === "figure") {
-    const cell = document.createElement("div");
-    cell.className = "cell fig";
-    const img = document.createElement("img");
     const a = assetMeta.get(b.src);
-    if (a?.w && a?.h) { img.width = a.w; img.height = a.h; }
-    img.alt = a?.alt || "";
-    fetchAsset(b.src).then((uri) => {
-      if (uri) img.src = uri;
-      img.onload = () => { measure(); rebuildTops(); };
-    });
-    cell.appendChild(img);
-    row.appendChild(cell);
+    const uriP = fetchAsset(b.src);
+    for (const side of ["src", "ko"]) {
+      const cell = document.createElement("div");
+      cell.className = `cell ${side} fig`;
+      const img = document.createElement("img");
+      img.alt = a?.alt || "";
+      uriP.then((uri) => {
+        if (uri) img.src = uri;
+        img.onload = () => { measure(); rebuildTops(); };
+      });
+      cell.appendChild(img);
+      row.appendChild(cell);
+    }
     return row;
   }
 
@@ -381,8 +385,7 @@ function updateFocus() {
 }
 
 function placeHandle() {
-  /* 그림 행은 한 칸짜리다 — 표지 그림이 첫 행이면 손잡이가 사라진다 */
-  const row = doc.querySelector(".row:not(.row-figure)");
+  const row = doc.querySelector(".row");
   if (!row || row.children.length < 2) { handle.style.display = "none"; return; }
   const a = row.children[0].getBoundingClientRect();
   const c = row.children[1].getBoundingClientRect();
@@ -889,7 +892,7 @@ const sayVoice = document.getElementById("sayVoice");
 const saySpeed = document.getElementById("saySpeed");
 const sayExport = document.getElementById("sayExport");
 
-const NO_TRANSLATE = 16, DROPPED = 32;
+/* NO_TRANSLATE·DROPPED 는 파일 위쪽(문서 상태)에서 선언된 것을 쓴다. */
 /* 소리로 들으면 흐름이 끊기는 것들. 표 원본과 도판 설명은 글로는 읽히지만
    낭독에는 자리가 없고, 색인·참고문헌도 읽을 것이 못 된다. */
 const speakable = (b) =>

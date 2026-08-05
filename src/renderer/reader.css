@@ -282,20 +282,21 @@ body.sel-src .cell.ko, body.sel-ko .cell.src { user-select: none; }
   --blockgap: calc(var(--leading) * var(--para-k) * 1em);
 }
 
-/* 그림 — 번역 상대가 없으므로 행을 좌우로 가르지 않는다. 여백은 본문 한 단락과
-   같은 규칙이되 최소 반 줄은 준다(단락간격 「없음」에서 그림이 글에 붙지 않게). */
-.row-figure { grid-template-columns: 1fr; }
+/* 그림 — 원문·번역 양쪽 칸에 같은 그림이 하나씩 들어간다(다른 행과 같은 2열
+   그리드). 여백은 본문 한 단락과 같은 규칙이되 최소 반 줄은 준다(단락간격
+   「없음」에서 그림이 글에 붙지 않게). */
 .row-figure .cell {
   --blockgap: max(calc(var(--leading) * var(--para-k) * 1em), .8em);
   --blockgap-b: .3em;
   text-align: center; text-indent: 0;
 }
 .row-figure img {
-  /* 양쪽 다 auto 라야 max 제약이 비율을 지키며 줄인다 — width 속성값이 살아
-     있으면 max-height 만 눌려 그림이 옆으로 퍼진다. */
-  width: auto; height: auto; max-width: 100%; max-height: 78vh;
+  /* 칸 폭의 60%를 상한으로 축소만 한다. 원본이 그보다 작으면 그대로 —
+     확대는 뭉개진다. 양쪽 다 auto + max-width 하나뿐이라 비율은 항상
+     유지되고 잘리는 곳도 없다(max-height 를 두면 비율이 깨진다 — 실측). */
+  width: auto; height: auto; max-width: 60%;
 }
-[data-theme="dark"] .row-figure img { filter: brightness(.88); }
+[data-theme="night"] .row-figure img { filter: brightness(.88); }
 
 .row-h1 .cell { --blockgap: 3.2rem; --blockgap-b: 1.1rem; }
 .row-h2 .cell { --blockgap: 2.2rem; --blockgap-b: .7rem; }

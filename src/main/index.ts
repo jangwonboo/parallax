@@ -220,30 +220,55 @@ async function planPagecheck(
   if (readSettings().pagecheck === "off") return null;
   if (!Imp.hasPagecheck(skill) || !ex.pages) return null;
   const apiKey = readKey();
-  if (!apiKey) return null;   // 키가 없으면 물어봐야 할 것도 없다
+  const chandra = Imp.hasChandra();
+  if (!apiKey && !chandra) return null;   // 쓸 수 있는 엔진이 하나도 없다
 
-  /* 어느 쪽을 권할지는 알려 주되 고르는 것은 감추지 않는다. 두 모드가 하는 일이
+  /* 어느 쪽을 권할지는 알려 주되 고르는 것은 감추지 않는다. 모드마다 하는 일이
      다르고, 잘못 고르면 되돌릴 수 없다 — 재판독은 멀쩡한 원문의 고어 철자를
-     현대화하고 저자의 의도적 오기를 고쳐 버린다. */
+     현대화하고 저자의 의도적 오기를 고쳐 버린다.
+
+     버튼은 쓸 수 있는 엔진으로만 조립한다 — 키가 없으면 Claude 두 모드가 빠지고,
+     Chandra 가 파이썬에 없으면 로컬 재판독이 빠진다. */
   const usd = (ex.pages * VISION_USD_PER_PAGE).toFixed(2);
+  const buttons = ["건너뛰기"];
+  const plans: (Imp.PagecheckOptions | null)[] = [null];
+  if (apiKey) {
+    buttons.push("구조만 대조", "전 쪽 재판독");
+    plans.push({ trust: "layer", engine: "vision", apiKey },
+               { trust: "vision", engine: "vision", apiKey });
+  }
+  if (chandra) {
+    buttons.push("전 쪽 재판독 (Chandra·로컬)");
+    plans.push({ trust: "vision", engine: "chandra", apiKey: apiKey ?? "" });
+  }
+  /* 레이어가 판독 산출물이면 재판독을 권한다 — 키가 있으면 Claude, 없으면 Chandra. */
+  const recommendId = ex.ocrLayer ? (apiKey ? 2 : 1) : (apiKey ? 1 : 0);
+
   const r = await dialog.showMessageBox(win!, {
     type: "question",
-    buttons: ["건너뛰기", "구조만 대조", "전 쪽 재판독"],
-    defaultId: ex.ocrLayer ? 2 : 1,
+    buttons,
+    defaultId: recommendId,
     cancelId: 0,
     checkboxLabel: "다음부터 묻지 말고 건너뛰기",
     message: "페이지 검증을 실행할까요?",
     detail:
-      `${ex.pages}쪽 · 블록 ${ex.blocks}개 · 예상 비용 약 $${usd}\n\n` +
+      `${ex.pages}쪽 · 블록 ${ex.blocks}개` +
+      (apiKey ? ` · Claude 엔진 예상 비용 약 $${usd}` : "") + "\n\n" +
       (ex.ocrLayer
         ? "이 PDF 의 텍스트 레이어는 판독 산출물로 보입니다 — 글자 자체가 이미 추측이므로 " +
           "「전 쪽 재판독」을 권합니다.\n\n"
         : "이 PDF 의 텍스트 레이어는 문서가 가진 제 글자로 보입니다 — 「구조만 대조」를 " +
           "권합니다.\n\n") +
-      "구조만 대조: 글자는 텍스트 레이어 그대로 두고 제목·순서·누락만 쪽 이미지로 고칩니다.\n" +
-      "전 쪽 재판독: 모든 쪽을 이미지에서 다시 받아씁니다. 표지 조각과 판독 오류를 " +
-      "걷어내지만, 판독 모델은 고어 철자를 현대화하고 저자의 의도적 오기를 고칩니다.\n\n" +
-      "건너뛰면 추출한 그대로 열립니다. 몇 분 걸리며 도중에 멈출 수 있습니다.",
+      (apiKey
+        ? "구조만 대조: 글자는 텍스트 레이어 그대로 두고 제목·순서·누락만 쪽 이미지로 고칩니다.\n" +
+          "전 쪽 재판독: 모든 쪽을 이미지에서 다시 받아씁니다. 표지 조각과 판독 오류를 " +
+          "걷어내지만, 판독 모델은 고어 철자를 현대화하고 저자의 의도적 오기를 고칩니다.\n"
+        : "Anthropic API 키가 없어 Claude 엔진(구조만 대조·전 쪽 재판독)은 쓸 수 없습니다.\n") +
+      (chandra
+        ? "Chandra·로컬: 모든 쪽을 로컬 Chandra OCR 모델로 다시 받아씁니다. 무료지만 " +
+          "GPU(또는 chandra_vllm 서버)가 필요하고, 역시 판독 텍스트로 갈아끼웁니다.\n"
+        : "") +
+      "\n건너뛰면 추출한 그대로 열립니다. 몇 분 걸리며 도중에 멈출 수 있습니다.",
   });
 
   /* 체크는 「묻지 않기」가 아니라 「묻지 말고 건너뛰기」다. 묻지 않기로 해 두고
@@ -252,8 +277,7 @@ async function planPagecheck(
     writeSettings({ ...readSettings(), pagecheck: "off" });
     buildMenu();
   }
-  if (r.response === 0) return null;
-  return { trust: r.response === 2 ? "vision" : "layer", apiKey };
+  return plans[r.response] ?? null;
 }
 
 async function openPath(path: string) {

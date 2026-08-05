@@ -260,9 +260,28 @@ export async function extractPdf(
 export interface PagecheckOptions {
   /** layer = 글자는 텍스트 레이어가 정답, 구조만 이미지로 고친다. vision = 전 쪽 재판독. */
   trust: "layer" | "vision";
+  /** vision = Claude 비전 모델(쪽당 과금). chandra = 로컬 Chandra OCR(무료, GPU·vllm
+      서버 필요) — 항상 전 쪽 재판독으로 동작하며 trust 는 무시된다. */
+  engine: "vision" | "chandra";
+  /** chandra 엔진은 키가 필요 없다 — 빈 문자열이면 넘기지 않는다. */
   apiKey: string;
   /** "1-20" 처럼 일부만. 시험 삼아 돌려 볼 때 쓴다. */
   pages?: string;
+}
+
+/** Chandra OCR(datalab-to/chandra)이 파이썬에 깔려 있는가. import 는 torch 까지
+    끌어 무거우니 find_spec 으로 설치 여부만 본다. 세션당 한 번 — 설치 직후에는
+    앱을 다시 시작해야 보인다. */
+let chandraCache: boolean | undefined;
+export function hasChandra(): boolean {
+  if (chandraCache !== undefined) return chandraCache;
+  const py = findPython();
+  if (!py) return (chandraCache = false);
+  const r = spawnSync(
+    py,
+    ["-c", "import importlib.util as u,sys;sys.exit(0 if u.find_spec('chandra') else 1)"],
+    { encoding: "utf8", timeout: 5000, windowsHide: true });
+  return (chandraCache = r.status === 0);
 }
 
 /**
@@ -279,10 +298,12 @@ export async function pagecheckPdf(
   opts: PagecheckOptions,
   onProgress: (p: T.ImportProgress) => void
 ): Promise<void> {
-  const args = [ex.book, "--pdf", pdfPath, "--trust", opts.trust];
+  const args = [ex.book, "--pdf", pdfPath, "--engine", opts.engine];
+  /* chandra 는 전 쪽 재판독 고정이라 --trust 가 무의미하다. */
+  if (opts.engine === "vision") args.push("--trust", opts.trust);
   if (opts.pages) args.push("--pages", opts.pages);
   await runPy(join(skillDir, "scripts", "pagecheck.py"), args,
-    { ANTHROPIC_API_KEY: opts.apiKey }, (line) => {
+    opts.apiKey ? { ANTHROPIC_API_KEY: opts.apiKey } : null, (line) => {
       /* _llm.progress() 가 내는 `[12/191] 6% pages read` */
       const m = /^\[(\d+)\/(\d+)\]/.exec(line);
       onProgress({

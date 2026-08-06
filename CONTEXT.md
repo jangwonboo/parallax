@@ -2,7 +2,7 @@
 
 새 세션이 이 저장소를 이어받을 때 먼저 읽는 문서. 설계는 `spec.md`, 실행 방법은 `USAGE.md`.
 
-최종 갱신: 2026-08-05
+최종 갱신: 2026-08-06
 
 ---
 
@@ -40,6 +40,10 @@
 2026-08-03~04 세션 — **낭독(TTS)을 넣기 시작했다.** 설치가 깨지던 것부터 고쳤다: `npm start` 가 `'tsc' is not recognized` 로 죽었는데 `node_modules` 자체가 비어 있었다. better-sqlite3 에 Node 24 용 미리 빌드본이 없어 소스 컴파일로 넘어가고, node-gyp 10 이 Visual Studio Build Tools 2026(v18)을 못 알아봐 npm 이 전체를 되돌린 것이다. `.npmrc` 로 네이티브 모듈을 Electron ABI 로 받게 하고(`runtime=electron`), `scripts/rebuild-native.mjs` 를 postinstall 에 걸어 「미리 빌드본 먼저, 안 되면 컴파일, 그래도 안 되면 설치는 성공시킨다」로 만들었다. 깨끗한 재설치로 확인. 그 위에 Supertonic 3(ONNX, `onnxruntime-node`)을 붙였다 — 자세한 것은 아래 절.
 
 2026-07-30 세션 — **07-28 수정분의 화면 재확인을 마쳤다.** `pagecheck_test_20p.pdf` 를 재생성해(원본 앞 20쪽, PyMuPDF — 지난 세션 것은 지워져 있었다) 앱으로 열고 「전 쪽 재판독」 전 구간을 실행($0.15). 확인된 것: ① 쪽별 진행 표시 `페이지 검증 중 · 7 / 20쪽 · 취소` 가 화면 아래 가운데에 뜬다. ② `superseded` 이관 — 시험 문서에 19행, 밀려난 원 레이어(`"Ihe Meaning or Your I ife"` 따위)가 그대로 보관됐다. ③ `page_check` 이관 21행(요약 `page=0` + 20쪽), **파일 → 페이지 검증 리포트** 가 임시 md 로 재조립해 연다(요약·쪽별 표 온전). 검증 방법: `--inspect=9229` 로 메인에 붙어 `dialog.showMessageBox` 를 패치해 자동 응답, 렌더러 CDP 로 관찰 — 스크립트는 세션 스크래치의 `drive-pagecheck.mjs`/`watch-pagecheck.mjs`. 요령 둘: CDP `Page.captureScreenshot` 은 창이 가려지면 응답하지 않는다(메인의 `webContents.capturePage()` 를 쓸 것), 번역 자동 시작은 렌더러에서 `setInterval` 로 `translate.pause(true)` 를 계속 눌러 막았다(지출 $0.00 확인). 같은 날 electron-builder 로 Windows 설치본(`Parallax Setup 0.1.0.exe`)을 처음 빌드했다 — 출력은 `release/`(`.gitignore`), 산출물은 언제든 재생성되므로 보관하지 않는다.
+
+2026-08-06 세션 — **《The Mind Is Flat》 그림 판본의 전량 번역을 마쳤다.** 오전 세션이 그림 복구(figure 45 · asset 45) → 용어집 초안 → 뉴닉체 번역을 걸었다가 89/99 청크에서 강제 종료됐고, 이어받은 세션이 작업 디렉터리(세션 스크래치 `mindflat/work`)의 캐시를 그대로 살려 나머지 80블록만 재실행했다(translate 는 빈 블록만 묶으므로 완료분은 공짜). deslop(약, 39블록) → verify(빠짐 0 · 지적은 URL 각주·색인 구간이라 전부 무해, 각주 번호 누락 16건만 리더에서 확인할 것) → export 로 **`D:\ebook\__output__\the_mind_is_flat.parallax`(875블록 · 번역 816 · 그림 43 · asset 43 · page_check 245행)가 새 정본**이다. 전체 book.json 도 `the_mind_is_flat.book.json` 으로 옆에 백업했다(md 스냅샷보다 무손실). 요령: 임시 폴더에서 CLI 를 돌리면 `.env` 탐색 경로에 저장소가 없다 — `PKT_ENV_FILE=D:\projects\parallax\.env` 로 지정할 것. 중단 시 앱이 물고 있던 0바이트 `-wal`/`-shm` 잔재도 지웠다.
+
+> **`the_mind_is_flat.noads.parallax`(구 번역 완본)와 그 md 스냅샷은 이 PC 에 없다 — 지워진 것이 아니라 애초에 다른 PC 소재다.** 이 PC(사용자 `john.boo`, 26NB9001)의 전 세션 기록·디스크·휴지통 어디에도 그 이름이 등장하지 않고, 이 문서의 TTS 정션 경로가 `C:\Users\johnb\…` 인 것이 증거다 — 8/2~04 노트북 작업은 `johnb` PC 에서 이뤄졌다. 두 PC 의 `D:\ebook\__output__` 는 이름만 같고 내용이 갈라져 있으니 주의. 구판(그림 없음)은 어차피 신판이 대체한다.
 
 2026-08-05 두 번째 세션 — **그림이 처음으로 파이프라인을 통과한다(스키마 v2).** Datalab chunks 가 잘라 보내는 그림(base64 JPG + 모델이 쓴 alt 설명 + bbox)을 지금까지 버리고 있었다 — 이제 `harvest_images()` 가 **모든 청크**의 `images` 필드를 줍는다(Picture 유형만 보면 안 된다: 실측에서 표지 그림이 SectionHeader 안에 `<img>` 로 내장되어 왔다). 흐름: pagecheck 가 `book["assets"]` + `figure` 블록(`src`=asset id, NO_TRANSLATE, 한 변 64px 미만은 장식으로 버림) → `export.py`/앱 `Doc.create` 가 `asset` 테이블(id·mime·w·h·alt·data BLOB)로 이관 → 리더가 data URI 로 그린다(`asset:get` IPC, CSP 의 `img-src data:` 는 이미 허용). figure 행은 원문·번역 **양쪽 칸에 같은 그림을 하나씩** 둔다(사용자 지정: 한쪽 대역만 읽는 눈이 그림을 놓치지 않게) — 칸 폭의 60% 상한으로 축소만 하고(`max-width: 60%`, 확대·잘림 없음) 데이터는 한 번만 받아 두 `<img>` 가 나눠 쓴다. `max-height` 는 두면 안 된다 — `<img width>` 속성이나 max 제약 둘이 겹치면 비율이 깨지는 것을 실측으로 확인했고, `width:auto; height:auto; max-width` 하나만 남겼다. 가상 스크롤 높이는 상수 추정이 아니라 w/h 실값으로 계산한다. `schema_version` 1→2(스키마 세 벌 + spec §2.2 모두 갱신), `parallax_import.py` 왕복도 asset 을 실어 **무손실 확인**. 검증: 20쪽 시험 PDF 1~3쪽 실 호출(표지 그림 1417×1274 + 출판사 로고 65×90 수확) → export → 앱을 CDP 로 열어 화면 실측 — 비율 유지(761×685) 확인. 이때 밟은 것 둘: ① `<img width=…>` 속성이 살아 있으면 CSS `max-height` 가 비율을 깨고 옆으로 퍼진다 — `width:auto; height:auto` 로 풀어야 max 제약 둘이 비율을 지키며 줄인다. ② CDP 드라이브 스크립트가 번역 자동 시작을 안 막아 시험 문서 번역이 실제로 돌았다($0.1~0.2 지출) — 다음부터 드라이버에 `translate.pause(true)` 필수(2026-07-30 세션의 요령을 그대로). 렌더러의 번역 요청도 NO_TRANSLATE/DROPPED 블록을 거르게 고쳤다(전부터 새던 구멍). 정본 zip 재포장 완료. 기존 945블록 작업 파일에 그림을 소급하려면 그림 있는 쪽만 datalab 재판독하는 스크립트가 필요하다(미착수).
 
@@ -184,6 +188,11 @@ CDP 로 실행 확인(세션 스크래치의 `drive-say*.mjs`·`drive-export*.mj
 
 **정본은 `pdf-ko-translate.zip` 이다.** 저장소에 풀려 있는 `pdf-ko-translate/` 는 `.gitignore` 에 있다 — 스크립트를 고쳤으면 zip 을 다시 말아야 히스토리에 남는다. 2026-07-28에 다시 말면서 `{references,scripts,templates}/` 라는 항목도 지웠다(중괄호 확장이 안 먹은 셸 명령이 남긴 가짜 디렉터리다).
 
+2026-08-06 에 고친 것 — **목차 계층 규칙 둘** (`extract.py`, 둘 다 `normalize_headings` 안이라 extract·pagecheck 양쪽에 먹는다):
+- `CHAPTER_MARK_RE` 에 영단어 수사(one~twenty) 추가 — "PART ONE" 이 h1 로 못 올라가 목차가 평평했다. PART h1 바로 다음 같은 쪽의 제목은 부(部) 부제로 보고 함께 h1.
+- `demote_printed_toc()` 신규 — 인쇄된 목차 페이지의 항목들이 제목으로 잡혀 앱 목차에 목차가 두 벌 실리던 것을, Contents 표제가 선 쪽(+제목 3개 이상 몰린 연속 쪽)의 제목을 본문으로 내려 막는다.
+`the_mind_is_flat.parallax` 는 같은 내용을 사후 수정으로 반영했다(+본문 대문자 소제목 36개 h3 강등, 원본 `.bak`). 정본 zip 재포장(19항목, 바이트 대조 일치).
+
 정본은 2026-08-04 에 다시 말았다 — 19개 항목(`repair.py` 가 새로 들어갔다). 말기 전에 전 파일을 UTF-8 로 엄격 디코드해 손상 0을 확인했고(BOM·치환문자 없음), 만든 뒤에는 풀어서 바이트 대조 19/19 일치와 `import extract, pagecheck, repair` 까지 확인했다. 옛 zip 은 세션 임시 폴더에 날짜를 붙여 남겼다.
 
 2026-08-02~03 세션에 고친 것 — **단락이 토막 나던 원인을 뿌리에서 잡았다.** `the_mind_is_flat.parallax` 가 문장 한가운데서 끊긴 블록으로 가득했고, 끊긴 블록은 번역도 안 됐다.
@@ -320,7 +329,9 @@ pagecheck가 삽입·재구성한 블록은 접미사 ID를 갖는다(`b0052a`).
 
 ## 남아 있는 데이터 파일
 
-**두 번째 책이 생겼다 — `the_mind_is_flat.noads.parallax`**(Nick Chater, 『마음은 평평하다』). 광고를 걷어낸 PDF 244쪽에서 전 공정을 다시 돌린 결과이고 이것이 정본이다. 추출 1,521블록·이음 2,635·거름 269 → pagecheck 1,492블록(유형 교정 326, 병합 40, **본문 오삭제 0**) → 용어집 77 → 번역 1,117/1,117(뉴닉체) → deslop 전량(강도 `약` 에서 손댄 것 11) → 내보내기. 검증: 문장 중간 끊김 0, 번역 대상에 남은 도판 쓰레기 0. 문체 확인 — 845단락 중 **`-다` 로 끝나는 것 0개**, 해요체 635, 문두 입말 접속사 118. md 스냅샷은 `the_mind_is_flat.noads.{en,ko}.md`.
+**두 번째 책의 정본은 2026-08-06 부로 `the_mind_is_flat.parallax`(그림 판본, 875블록 · 번역 816)다** — 위 08-06 세션 참조. 아래 노랑 판본들은 그 전사(前史)다. `the_mind_is_flat.figures.parallax`(08-06 12:27) 는 중단 시점의 체크포인트라 지워도 된다.
+
+**그 전 판 — `the_mind_is_flat.noads.parallax`**(Nick Chater, 『마음은 평평하다』, **이 PC 에 없음 — johnb PC 소재**). 광고를 걷어낸 PDF 244쪽에서 전 공정을 다시 돌린 결과였다. 추출 1,521블록·이음 2,635·거름 269 → pagecheck 1,492블록(유형 교정 326, 병합 40, **본문 오삭제 0**) → 용어집 77 → 번역 1,117/1,117(뉴닉체) → deslop 전량(강도 `약` 에서 손댄 것 11) → 내보내기. 검증: 문장 중간 끊김 0, 번역 대상에 남은 도판 쓰레기 0. 문체 확인 — 845단락 중 **`-다` 로 끝나는 것 0개**, 해요체 635, 문두 입말 접속사 118. md 스냅샷은 `the_mind_is_flat.noads.{en,ko}.md`.
 
 그 앞선 판(`the_mind_is_flat.parallax`, 광고 포함)은 사후 수리한 것이다 — 1569→1391블록(중복 삽입 97 삭제, 81쌍 병합, 잘못된 삭제 234 복원, 같은 쪽 중간 끊김 157→0), 이어서 미번역 208개를 채웠다(기존 901개는 바이트 단위로 그대로). `repair.py` 가 여기서 나왔다.
 

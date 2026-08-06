@@ -77,7 +77,7 @@ export interface Heading {
 }
 
 export type Priority = 0 | 1 | 2 | 3;
-export type Mode = "viewport" | "chapter" | "all";
+export type Mode = "chapter" | "all";
 
 export interface Stats {
   total: number;
@@ -132,16 +132,3 @@ export const HEADING_TYPES: BlockType[] = ["h1", "h2", "h3"];
  * 가져가는 글에는 자리가 없다. NO_TRANSLATE(색인·참고문헌)는 책의 일부라 남긴다.
  */
 export const isExportable = (b: Pick<Block, "flags">) => (b.flags & DROPPED) === 0;
-
-/**
- * 소리 내어 읽는가 (spec-tts.md §8.3).
- *
- * 내보내기보다 좁다. 표 원본과 도판 설명은 글로는 읽을 수 있어도 소리로 들으면
- * 흐름이 끊긴다. 색인·참고문헌(NO_TRANSLATE)도 낭독할 것이 못 된다.
- *
- * 두 술어를 한자리에 두는 이유는 갈라졌던 적이 있기 때문이다 — 도판 조각을
- * 걸러 내는 규칙이 파이프라인에 들어간 뒤에도 내보내기는 한동안 그것을 실었다.
- */
-export const isSpeakable = (b: Pick<Block, "flags" | "type">) =>
-  (b.flags & (NO_TRANSLATE | DROPPED)) === 0 &&
-  b.type !== "table_raw" && b.type !== "figcaption";

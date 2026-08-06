@@ -25,7 +25,7 @@ export class Scheduler {
   private queued = new Set<string>();
   private running = 0;
   private spendUsd = 0;
-  private mode: T.Mode = "viewport";
+  private mode: T.Mode = "chapter";
   private paused = false;
   private tail = "";
   private onChange: (ids: string[]) => void;

@@ -8,7 +8,6 @@ const handle = document.getElementById("handle");
 const toc = document.getElementById("toc");
 const tocBtn = document.getElementById("tocBtn");
 const welcome = document.getElementById("welcome");
-const statusEl = document.getElementById("status");
 
 /* ── 서체 ────────────────────────────────────────────── */
 const SUIT = ["SUIT Variable", '"SUIT Variable",-apple-system,sans-serif',
@@ -290,8 +289,7 @@ async function renderWindow() {
     rebuildTops();
     placeHandle();
     updateFocus();      // 새로 마운트된 행에도 물림을 입힌다
-    paintRange();       // 낭독 영역 표시도 마운트를 따라 되살린다
-    queueTranslation(from, to);
+    queueTranslation();
   } finally {
     renderPending = false;
   }
@@ -320,15 +318,25 @@ function flushHeights() {
 setInterval(flushHeights, 4000);
 
 /* ── 번역 요청 ───────────────────────────────────────── */
+/* 「따라가기」(스크롤 창만 따라 번역)는 2026-08-06 에 뺐다. 남은 둘:
+   현재 장 — 눈이 머무는 장을 통째로 요청한다. 장 경계는 h1·h2 (부·장 제목).
+   전체    — 스케줄러가 이미 다 물고 있으므로 보이는 블록의 우선순위만 올린다. */
+let trMode = "chapter";
+const isChapterHead = (it) => it.type === "h1" || it.type === "h2";
 let scrollIdle = null;
-function queueTranslation(from, to) {
+function queueTranslation() {
   clearTimeout(scrollIdle);
   scrollIdle = setTimeout(async () => {
     const vh = window.innerHeight;
     const y = window.scrollY - doc.offsetTop;
     const vf = findIndexAt(y), vt = findIndexAt(y + vh);
+    let lo = vf, hi = vt;
+    if (trMode === "chapter") {
+      while (lo > 0 && !isChapterHead(index[lo])) lo--;
+      while (hi + 1 < index.length && !isChapterHead(index[hi + 1])) hi++;
+    }
     const p0 = [], p1 = [];
-    for (let i = from; i <= to; i++) {
+    for (let i = lo; i <= hi; i++) {
       const b = loaded.get(index[i].id);
       if (!b || b.ko) continue;
       /* 번역 제외 블록(그림·색인·머리글)은 요청 자체를 보내지 않는다 */
@@ -399,7 +407,8 @@ function setSplit(pct) {
   split = Math.min(80, Math.max(20, pct));
   setVar("--split", (split / 100).toFixed(4));
   handle.setAttribute("aria-valuenow", String(Math.round(split)));
-  saveSetting("split", split);
+  /* 저장하지 않는다 — 드래그로 틀어진 비율이 실행마다 되살아나면 시작 화면이
+     늘 비뚤다(실제로 46.9% 로 굳어 있었다). 조절은 그 세션 안에서만 산다. */
   requestAnimationFrame(() => { invalidateHeights(); placeHandle(); });
   return split;
 }
@@ -577,8 +586,6 @@ const tocPushes = matchMedia("(min-width: 900px)");
 /* 문서 열기는 앱 메뉴(파일 → 열기…, Ctrl+O)로만 한다. 빈 화면의 버튼은
    문서가 아직 없을 때의 유일한 진입점이라 남긴다. */
 document.getElementById("openBtn2").onclick = () => api.doc.open();
-document.getElementById("modeSel").addEventListener("change", (e) =>
-  api.translate.setMode(e.target.value));
 
 /* ── 사전 ────────────────────────────────────────────── */
 const dict = document.getElementById("dict");
@@ -647,9 +654,9 @@ async function showDict(word, rect) {
   place(lastRect);
 }
 
-/* 사전은 **더블클릭**으로 연다. 예전에는 고르기만 하면 떴는데, 낭독이 「낱말 하나를
-   짚으면 여기부터」를 쓰면서 자리를 정할 때마다 사전이 함께 떠 본문을 가렸다.
-   더블클릭은 낱말을 고르는 동작 그 자체라 손이 더 가지도 않는다. */
+/* 사전은 **더블클릭**으로 연다. 고르기만 하면 뜨던 시절에는 글을 짚어 보려는
+   선택마다 사전이 함께 떠 본문을 가렸다. 더블클릭은 낱말을 고르는 동작 그
+   자체라 손이 더 가지도 않는다. */
 document.addEventListener("dblclick", (e) => {
   if (dict.contains(e.target)) return;
   const sel = getSelection();
@@ -711,19 +718,9 @@ doc.addEventListener("mouseover", (e) => {
   marked.forEach((n) => n.classList.add("mate"));
 });
 
-/* ── 상태 표시줄 ─────────────────────────────────────── */
-function renderStats(s) {
-  if (!s) return;
-  statusEl.hidden = false;
-  document.getElementById("stMode").textContent =
-    { viewport: "따라가기", chapter: "현재 장", all: "전체" }[s.mode] || s.mode;
-  const pct = s.translatable ? (s.done / s.translatable) * 100 : 0;
-  document.getElementById("stFill").style.width = pct.toFixed(1) + "%";
-  document.getElementById("stCount").innerHTML =
-    `<b>${s.done.toLocaleString()}</b> / ${s.translatable.toLocaleString()}` +
-    (s.inFlight ? ` · 진행 ${s.inFlight}` : "");
-  document.getElementById("stSpend").textContent = "$" + s.spendUsd.toFixed(2);
-}
+/* 우하단 진행 위젯은 2026-08-06 에 뺐다(사용자 지시) — 진행·지출 집계는
+   main 의 스케줄러가 계속 물고 있으므로 되살릴 일이 생기면 stats 이벤트만
+   다시 받으면 된다. */
 
 /* ── API 키 ──────────────────────────────────────────── */
 const keyDlg = document.getElementById("keyDlg");
@@ -824,8 +821,6 @@ api.on("doc:opened", async (e) => {
   recomputeEstimates();
   for (const it of index) if (!heights[it.id]) it.h = estimateOf(it);
   rebuildTops();
-
-  renderStats(await api.translate.stats());
 });
 
 api.on("block:updated", async ({ ids }) => {
@@ -842,10 +837,7 @@ api.on("block:updated", async ({ ids }) => {
   }
   measure();
   rebuildTops();
-  renderStats(await api.translate.stats());
 });
-
-api.on("stats", renderStats);
 /* 여는 중 표시 — 페이지 검증은 쪽마다 모델을 부르므로 몇 분씩 간다. 어디까지
    갔는지와 멈추는 버튼이 없으면 멈춘 것과 구분되지 않는다. */
 const importing = document.getElementById("importing");
@@ -874,466 +866,6 @@ api.on("import:progress", (p) => {
     const w = document.getElementById("welcome");
     if (w) w.querySelector("p").textContent = p.message;
   }
-});
-
-/* ── 낭독 ────────────────────────────────────────────
-   본문에서 무언가를 고르면 **준비**되고, 재생은 툴바에서 누른다. 고르는 순간
-   소리가 나면 글을 짚어 보려던 선택마다 놀라게 된다 — 고르는 것은 「무엇을」이고
-   누르는 것이 「지금」이다.
-
-   고른 길이가 세 낱말 이하면 그것은 범위가 아니라 **자리**로 읽는다: 거기서부터
-   문서 끝까지 이어 읽는다. 한 문장만 듣고 싶으면 그 문장을 고르면 되고, 여기서부터
-   듣고 싶으면 한 낱말만 짚으면 된다. */
-const sayBar = document.getElementById("sayBar");
-const sayPlay = document.getElementById("sayPlay");
-const sayStop = document.getElementById("sayStop");
-const sayState = document.getElementById("sayState");
-const sayVoice = document.getElementById("sayVoice");
-const saySpeed = document.getElementById("saySpeed");
-const sayExport = document.getElementById("sayExport");
-
-/* NO_TRANSLATE·DROPPED 는 파일 위쪽(문서 상태)에서 선언된 것을 쓴다. */
-/* 소리로 들으면 흐름이 끊기는 것들. 표 원본과 도판 설명은 글로는 읽히지만
-   낭독에는 자리가 없고, 색인·참고문헌도 읽을 것이 못 된다. */
-const speakable = (b) =>
-  !(b.flags & (NO_TRANSLATE | DROPPED)) && b.type !== "table_raw" && b.type !== "figcaption";
-
-let sayAudio = null, sayUrl = null;
-let sayGen = 0;                 // 요청 세대. 늦게 온 답을 버리는 데 쓴다.
-let sayPhase = "idle";          // idle | loading | ready | playing | paused | done | export | error
-let source = null;              // 읽을거리 (makeSource)
-let queue = [];                 // 계획은 됐고 아직 안 튼 조각
-let ahead = null;               // { key, p } — 미리 만들어 둔 다음 조각
-let cur = null;                 // 지금 트는 조각 { blockId, words, total }
-
-/* ── 읽을거리 ──────────────────────────────────────── */
-function makeSource(side, lang, mode, startIdx, items) {
-  return { side, lang, mode, i: startIdx, items: items || [], it: 0, spoken: startIdx };
-}
-
-/** 다음에 읽을 블록 하나. 없으면 null. */
-async function nextBlock(s) {
-  if (s.mode === "sel") {
-    while (s.it < s.items.length) {
-      const seg = s.items[s.it++];
-      if (seg.text.trim()) return seg;
-    }
-    return null;
-  }
-  /* 이어 읽기 — 문서 순서를 따라가며 읽을 수 있는 블록을 찾는다. 번역이 아직
-     없는 블록은 건너뛴다(원문으로 바꿔 읽으면 언어가 문장 중간에 튄다). */
-  while (s.i < index.length) {
-    const at = s.i++;
-    let b = loaded.get(index[at].id);
-    if (!b) {
-      await ensureLoaded(at, Math.min(index.length - 1, at + 40));
-      b = loaded.get(index[at].id);
-    }
-    if (!b || !speakable(b)) continue;
-    const text = (s.side === "ko" ? b.ko : b.src) || "";
-    if (!text.trim()) continue;
-    s.spoken = at;
-    return { blockId: b.id, type: b.type, text: text.trim() };
-  }
-  return null;
-}
-
-const WEIGHT = (w) => w.length + (/[.!?…][)\]"'’”]*$/.test(w) ? 4 : /[,;:]$/.test(w) ? 2 : 0);
-
-/** 조각 안의 낱말과 그 자리(블록 글 기준). 소리에 맞춰 짚으려면 자리가 필요하다. */
-function wordsOf(text, base) {
-  const out = [];
-  const re = /\S+/g;
-  let m;
-  while ((m = re.exec(text))) {
-    out.push({ a: base + m.index, b: base + m.index + m[0].length, w: WEIGHT(m[0]) });
-  }
-  return out;
-}
-
-/** 큐에 조각이 둘은 있게 채운다.
-
-    **겹쳐 부르면 안 된다.** 고르는 순간 한 번(미리 만들어 두려고), 재생을 누를 때
-    또 한 번 불리는데, 첫 번째가 아직 `plan` 을 기다리는 동안 두 번째가 들어오면
-    `nextBlock` 이 조각을 한 번 더 꺼내 간다. 고른 것이 한 덩어리면 두 번째 호출이
-    빈손으로 돌아오고 재생은 시작하자마자 「끝」이 된다 — 모델이 처음 뜨는 1.4초
-    동안 재생을 누르면 늘 이렇게 됐다(설치본 첫 실행에서 잡았다). 진행 중인 것이
-    있으면 그것을 기다린다. */
-let filling = null;
-function fillQueue() {
-  if (filling) return filling;
-  filling = fillQueueOnce().finally(() => { filling = null; });
-  return filling;
-}
-
-async function fillQueueOnce() {
-  const s = source;
-  while (s && s === source && queue.length < 2) {
-    const seg = await nextBlock(s);
-    if (!seg) return queue.length > 0;
-    const plan = await api.tts.plan({ text: seg.text, lang: s.lang, voice: sayVoice.value });
-    if (!plan || !plan.chunks || !plan.chunks.length) return queue.length > 0;
-    /* 조각이 블록 글의 어디인지 되찾는다. chunkText 는 문장을 홑공백으로 이으므로
-       대개 그대로 들어 있다 — 못 찾으면 낱말 짚기만 포기하고 소리는 낸다. */
-    let at = 0;
-    for (let i = 0; i < plan.chunks.length; i++) {
-      const text = plan.chunks[i];
-      const found = seg.text.indexOf(text, at);
-      if (found >= 0) at = found + text.length;
-      queue.push({
-        jobId: plan.jobId, i, text, blockId: seg.blockId,
-        words: found >= 0 ? wordsOf(text, (seg.base || 0) + found) : [],
-      });
-    }
-  }
-  return queue.length > 0;
-}
-
-/* ── 낱말 짚기 ─────────────────────────────────────
-   Supertonic 의 duration_predictor 는 발화 **전체 길이 하나**만 내준다
-   (`dims: [1]`, 실측 확인). 토큰별 길이가 없어 진짜 정렬은 만들 수 없다.
-   그래서 조각(문장) 경계는 **정확히** 맞추고 그 안에서만 글자 수로 나눈다 —
-   문장마다 다시 맞물리므로 어긋남이 한 문장 안에 갇힌다. */
-const HL_OK = typeof Highlight === "function" && typeof CSS !== "undefined" && CSS.highlights;
-const hlRange = HL_OK ? new Highlight() : null;   // 읽을 영역 — 옅게
-const hlWord = HL_OK ? new Highlight() : null;    // 지금 읽는 낱말 — 조금 진하게
-if (HL_OK) {
-  /* 낱말이 영역 위에 얹혀야 한다. 우선순위가 같으면 등록 순서로 갈리지만
-     명시해 두는 편이 읽는 사람에게 분명하다. */
-  hlRange.priority = 1;
-  hlWord.priority = 2;
-  CSS.highlights.set("say-range", hlRange);
-  CSS.highlights.set("say-word", hlWord);
-}
-
-/** 읽을 영역 — [{blockId, a, b}]. 가상 스크롤이 행을 지웠다 만들므로 자리로만 들고 있다. */
-let sayRange = [];
-
-function clearHL() {
-  hlWord?.clear();
-  hlRange?.clear();
-}
-
-/** 블록 글의 [a,b) 를 살아 있는 DOM 범위로. 마운트돼 있지 않으면 null. */
-function domRange(blockId, a, b) {
-  const row = mounted.get(blockId);
-  const cell = row?.querySelector(source?.side === "ko" ? ".cell.ko" : ".cell.src");
-  const node = cell?.firstElementChild?.firstChild;
-  if (!node || node.nodeType !== 3) return null;
-  const n = node.length;
-  if (a >= n || b <= a) return null;
-  const r = document.createRange();
-  r.setStart(node, Math.max(0, a));
-  r.setEnd(node, Math.min(n, b));
-  return r;
-}
-
-/** 영역 표시를 다시 그린다. 스크롤로 행이 새로 붙을 때마다 불러야 한다. */
-function paintRange() {
-  if (!hlRange) return;
-  hlRange.clear();
-  for (const r of sayRange) {
-    const rg = domRange(r.blockId, r.a, r.b);
-    if (rg) hlRange.add(rg);
-  }
-}
-
-function markWord(blockId, a, b) {
-  if (!hlWord) return;
-  const rg = domRange(blockId, a, b);
-  hlWord.clear();
-  if (rg) hlWord.add(rg);
-}
-
-/** 재생 위치 → 낱말. 조각 안에서 누적 가중치로 나눈다.
-
-    Supertonic 의 duration_predictor 는 발화 **전체 길이 하나**만 내준다
-    (`dims: [1]`, 실측 확인). 토큰별 길이가 없어 진짜 정렬은 만들 수 없다.
-    그래서 조각(문장) 경계는 **정확히** 맞추고 그 안에서만 글자 수로 나눈다 —
-    문장마다 다시 맞물리므로 어긋남이 한 문장 안에 갇힌다. */
-function paintWord() {
-  if (!cur || !cur.words.length || !sayAudio || !sayAudio.duration) return;
-  const t = Math.min(1, sayAudio.currentTime / sayAudio.duration);
-  let acc = 0;
-  for (const w of cur.words) {
-    acc += w.w;
-    if (acc / cur.total >= t) return markWord(cur.blockId, w.a, w.b);
-  }
-  const last = cur.words[cur.words.length - 1];
-  markWord(cur.blockId, last.a, last.b);
-}
-
-/* ── 따라 스크롤 ───────────────────────────────────
-   손으로 스크롤하면 3초 억제한다. 없으면 앞 문단을 되짚어 보려 할 때마다
-   재생 위치로 끌려가 읽을 수가 없다(spec-tts.md §6.2). */
-let scrollHold = 0;
-addEventListener("wheel", () => { scrollHold = Date.now() + 3000; }, { passive: true });
-addEventListener("keydown", (e) => {
-  if (["PageDown", "PageUp", "ArrowDown", "ArrowUp", "Home", "End", " "].includes(e.key)) {
-    scrollHold = Date.now() + 3000;
-  }
-});
-
-function follow(blockId) {
-  if (Date.now() < scrollHold) return;
-  const row = mounted.get(blockId);
-  if (row) {
-    const r = row.getBoundingClientRect();
-    if (r.top >= 80 && r.bottom <= innerHeight - 40) return;   // 이미 보인다
-  }
-  const i = index.findIndex((x) => x.id === blockId);
-  if (i < 0 || !tops || tops[i] === undefined) return;
-  scrollTo({ top: doc.offsetTop + tops[i] - 120, behavior: "smooth" });
-}
-
-/* ── 상태 ─────────────────────────────────────────── */
-const PHASE_TEXT = { idle: "", loading: "준비 중…", paused: "멈춤", done: "끝" };
-
-function paintSay(msg) {
-  let text = msg !== undefined ? msg : (PHASE_TEXT[sayPhase] || "");
-  if (msg === undefined && sayPhase === "playing") {
-    text = source && source.mode === "tail" && index.length
-      ? `읽는 중 ${Math.round((source.spoken / index.length) * 100)}%`
-      : "읽는 중";
-  }
-  if (msg === undefined && sayPhase === "ready") {
-    text = source && source.mode === "tail" ? "준비됨 · 여기부터" : "준비됨";
-  }
-  sayState.textContent = text;
-  sayState.classList.toggle("err", sayPhase === "error");
-  sayBar.dataset.ready = String(!!source);
-
-  const playing = sayPhase === "playing";
-  sayPlay.textContent = playing ? "❚❚" : "▶";
-  sayPlay.setAttribute("aria-label", playing ? "일시정지" : "재생");
-  sayPlay.disabled = !source || sayPhase === "loading" || sayPhase === "export";
-  sayStop.disabled = !source || sayPhase === "export";
-  sayExport.disabled = !source || sayPhase === "export";
-}
-const setSayPhase = (p, msg) => { sayPhase = p; paintSay(msg); };
-
-/* ── 재생 ─────────────────────────────────────────── */
-function dropAudio() {
-  if (sayAudio) { sayAudio.onended = null; sayAudio.pause(); }
-  if (sayUrl) { URL.revokeObjectURL(sayUrl); sayUrl = null; }
-  clearHL();
-}
-
-function resetSay(keepSource) {
-  sayGen++;
-  api.tts.stop();
-  dropAudio();
-  queue = []; ahead = null; cur = null; filling = null;
-  sayRange = [];
-  if (!keepSource) source = null;
-}
-
-function stopSay() {
-  resetSay(false);
-  setSayPhase("idle");
-}
-
-/* 다음 조각을 지금 조각이 나오는 동안 만든다. 합성이 재생보다 네 배 빨라
-   하나만 앞서면 끊기지 않는다 — 더 앞서 봐야 취소할 때 버리는 것만 는다. */
-function prefetch(c) {
-  ahead = c ? { key: c.jobId + "#" + c.i, p: api.tts.chunk({ jobId: c.jobId, i: c.i }) } : null;
-}
-function take(c) {
-  const key = c.jobId + "#" + c.i;
-  if (ahead && ahead.key === key) { const p = ahead.p; ahead = null; return p; }
-  return api.tts.chunk({ jobId: c.jobId, i: c.i });
-}
-
-async function playNext(gen) {
-  if (gen !== sayGen) return;
-  if (!queue.length && !(await fillQueue())) {
-    if (gen === sayGen) { clearHL(); setSayPhase("done"); }
-    return;
-  }
-  if (gen !== sayGen) return;
-
-  const c = queue.shift();
-  const r = await take(c);
-  if (gen !== sayGen) return;
-  if (!r) return setSayPhase("error", "합성하지 못했습니다.");
-
-  fillQueue().then(() => { if (gen === sayGen && queue.length) prefetch(queue[0]); });
-
-  cur = { blockId: c.blockId, words: c.words, total: c.words.reduce((n, w) => n + w.w, 0) || 1 };
-  /* 이어 읽기에는 경계가 없다(여기부터 끝까지) — 그때는 지금 읽는 블록이 영역이다.
-     책 전체를 칠하면 표시가 아니라 배경이 된다. */
-  if (source.mode === "tail") {
-    const row = mounted.get(c.blockId);
-    const cell = row?.querySelector(source.side === "ko" ? ".cell.ko" : ".cell.src");
-    const len = cell?.textContent?.length ?? 0;
-    sayRange = len ? [{ blockId: c.blockId, a: 0, b: len }] : [];
-    paintRange();
-  }
-  follow(c.blockId);
-
-  const url = URL.createObjectURL(new Blob([r.wav], { type: "audio/wav" }));
-  if (!sayAudio) sayAudio = new Audio();
-  sayAudio.onended = () => playNext(gen);
-  sayAudio.playbackRate = Number(saySpeed.value);
-  sayAudio.src = url;
-  /* 새 src 를 걸고 나서 옛것을 놓는다 — 먼저 놓으면 재생 중인 소스가 사라진다. */
-  if (sayUrl) URL.revokeObjectURL(sayUrl);
-  sayUrl = url;
-  try {
-    await sayAudio.play();
-    if (gen === sayGen) setSayPhase("playing");
-  } catch {
-    if (gen === sayGen) setSayPhase("error", "소리를 낼 수 없습니다.");
-  }
-}
-
-function togglePlay() {
-  if (!source) return;
-  if (sayPhase === "playing") { sayAudio.pause(); return setSayPhase("paused"); }
-  if (sayPhase === "paused" && sayAudio) { sayAudio.play(); return setSayPhase("playing"); }
-  const gen = ++sayGen;
-  setSayPhase("loading");
-  playNext(gen);
-}
-
-/* 낱말 짚기와 진행률은 프레임마다가 아니라 자주-충분히. */
-setInterval(() => { if (sayPhase === "playing") { paintWord(); paintSay(); } }, 120);
-
-/* ── 고르면 준비된다 ───────────────────────────────── */
-function segmentsFrom(sel, side, cell) {
-  const frag = sel.getRangeAt(0).cloneContents();
-  const cells = [...frag.querySelectorAll(`.cell.${side}`)];
-  const typeOf = (el) => (el && el.className.match(/row-(\w+)/) || [, "p"])[1];
-  /* 낱말을 짚으려면 **원문 어디**인지가 필요하다. 복제본이 들고 있는 것은 고른
-     조각뿐이라 자리를 잃는다 — 살아 있는 셀에서 그 조각이 시작하는 자리를 찾아
-     함께 들려 보낸다. 단락을 반만 골랐을 때 짚는 자리가 앞으로 밀리던 이유다. */
-  const baseOf = (blockId, text) => {
-    const live = blockId && mounted.get(blockId);
-    const t = live ? (live.querySelector(`.cell.${side}`)?.textContent ?? "") : "";
-    const at = t.indexOf(text);
-    return at >= 0 ? at : 0;
-  };
-
-  if (!cells.length) {
-    const blockId = cell?.parentElement?.dataset?.id ?? null;
-    const text = sel.toString().trim();
-    return [{ blockId, type: typeOf(cell?.parentElement), text, base: baseOf(blockId, text) }];
-  }
-  return cells
-    .map((c) => {
-      const blockId = c.parentElement?.dataset?.id ?? null;
-      const text = c.textContent.trim();
-      return { blockId, type: typeOf(c.parentElement), text, base: baseOf(blockId, text) };
-    })
-    .filter((s) => s.text);
-}
-
-function prepareFromSelection() {
-  const sel = getSelection();
-  const text = sel ? sel.toString().trim() : "";
-  if (!text || sel.isCollapsed) return;
-
-  const cellOf = (n) => ((n && n.nodeType === 1 ? n : n && n.parentElement) || null) &&
-    (n.nodeType === 1 ? n : n.parentElement).closest(".cell");
-  const cell = cellOf(sel.anchorNode) || cellOf(sel.focusNode)
-            || cellOf(sel.getRangeAt(0).commonAncestorContainer);
-  const side = cell ? (cell.classList.contains("ko") ? "ko" : "src")
-             : document.body.classList.contains("sel-ko") ? "ko"
-             : document.body.classList.contains("sel-src") ? "src" : null;
-  if (!side) return;
-
-  /* 오른쪽이라도 번역이 아직 없으면 원문이 그대로 보인다 — 한글이 실제로
-     있는지까지 보지 않으면 한국어 음성으로 영문을 읽게 된다. */
-  const ko = side === "ko" && /[가-힣]/.test(text);
-  const lang = ko ? "ko" : "en";
-  const words = text.split(/\s+/).length;
-
-  resetSay(false);
-  if (words <= 3) {
-    /* 짧게 고른 것은 범위가 아니라 자리다 — 여기부터 끝까지. */
-    const id = cell && cell.parentElement && cell.parentElement.dataset.id;
-    const at = Math.max(0, index.findIndex((x) => x.id === id));
-    source = makeSource(side, lang, "tail", at, null);
-  } else {
-    const segs = segmentsFrom(sel, side, cell);
-    source = makeSource(side, lang, "sel", 0, segs);
-    /* 고른 영역을 옅게 깔아 둔다 — 브라우저 선택은 다음 클릭에 사라지지만
-       「무엇을 읽을 것인가」는 재생이 끝날 때까지 보여야 한다. */
-    sayRange = segs.filter((g) => g.blockId)
-      .map((g) => ({ blockId: g.blockId, a: g.base || 0, b: (g.base || 0) + g.text.length }));
-    paintRange();
-  }
-  setSayPhase("ready");
-  /* 첫 조각을 미리 만들어 둔다 — 누르는 순간 소리가 나야 한다. */
-  fillQueue().then(() => { if (queue.length && !ahead) prefetch(queue[0]); });
-}
-
-/* 선택이 끝났을 때만 본다. selectionchange 는 드래그 내내 쏟아진다. */
-let prepTimer = null;
-document.addEventListener("mouseup", (e) => {
-  if (!doc.contains(e.target)) return;
-  clearTimeout(prepTimer);
-  prepTimer = setTimeout(prepareFromSelection, 80);
-});
-
-sayPlay.addEventListener("click", togglePlay);
-sayStop.addEventListener("click", stopSay);
-document.addEventListener("keydown", (e) => {
-  if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "t") return;
-  e.preventDefault();
-  togglePlay();
-});
-
-saySpeed.addEventListener("change", () => {
-  if (sayAudio) sayAudio.playbackRate = Number(saySpeed.value);
-  saveSetting("tts", { ...(settings.tts || {}), rate: Number(saySpeed.value) });
-});
-sayVoice.addEventListener("change", () => {
-  saveSetting("tts", { ...(settings.tts || {}), voice: sayVoice.value });
-  if (!source) return;
-  /* 목소리는 다시 합성해야 바뀐다. 읽던 자리는 지키고 만들어 둔 것만 버린다. */
-  const s = source, wasPlaying = sayPhase === "playing";
-  resetSay(true);
-  source = s;
-  if (wasPlaying) togglePlay();
-  else { setSayPhase("ready"); fillQueue(); }
-});
-
-/* ── mp3 내보내기 ─────────────────────────────────── */
-sayExport.addEventListener("click", async () => {
-  if (!source) return;
-  const s = source;
-  let segs;
-  if (s.mode === "sel") {
-    segs = s.items;
-  } else {
-    /* 여기부터 끝까지 — 제목마다 트랙이 하나씩 된다. */
-    const rest = await api.blocks.range(s.i, index.length);
-    segs = rest
-      .filter((b) => speakable(b) && ((s.side === "ko" ? b.ko : b.src) || "").trim())
-      .map((b) => ({ type: b.type, text: ((s.side === "ko" ? b.ko : b.src) || "").trim() }));
-  }
-  if (!segs.length) return;
-  resetSay(true);
-  source = s;
-  setSayPhase("export", "내보내는 중…");
-  const r = await api.tts.export({ segments: segs, lang: s.lang, voice: sayVoice.value });
-  if (!r) return setSayPhase("ready");
-  setSayPhase(r.cancelled ? "error" : "done",
-    r.cancelled ? `${r.files.length}개만 저장하고 멈췄습니다` : `${r.files.length}개 저장했습니다`);
-});
-
-api.on("tts:state", (s) => {
-  if (s.phase !== "error") return;
-  console.error("[tts]", s.message);
-  if (source) setSayPhase("error", s.message);
-});
-
-api.on("tts:progress", (p) => {
-  if (p.phase !== "export" || sayPhase !== "export") return;
-  const pct = Math.round(((p.track - 1) + p.done / Math.max(1, p.total)) / p.tracks * 100);
-  sayState.textContent = p.tracks > 1
-    ? `내보내는 중 ${p.track}/${p.tracks} · ${pct}%` : `내보내는 중 ${pct}%`;
 });
 
 /* ── 스크롤 ──────────────────────────────────────────── */
@@ -1378,42 +910,28 @@ addEventListener("resize", () => invalidateHeights());
     setVar("--maxw", v + "%");
     o.textContent = v + "%";
   }, "width", 100);
-  setSplit(Number(settings.split ?? 50));
+  /* 시작은 늘 절반씩 — 예전 저장값(settings.split)은 읽지 않는다 */
+  setSplit(50);
 
-  const themeSel = document.getElementById("themeSel");
-  root.dataset.theme = settings.theme || "light";
-  themeSel.value = root.dataset.theme;
-  themeSel.addEventListener("change", () => {
-    root.dataset.theme = themeSel.value;
-    saveSetting("theme", themeSel.value);
+  const themeBtn = document.getElementById("themeBtn");
+  const applyTheme = (t) => {
+    root.dataset.theme = t;
+    themeBtn.setAttribute("aria-pressed", String(t === "night"));
+  };
+  applyTheme(settings.theme === "night" ? "night" : "light");
+  themeBtn.addEventListener("click", () => {
+    const t = root.dataset.theme === "night" ? "light" : "night";
+    applyTheme(t);
+    saveSetting("theme", t);
   });
 
-  const modeSel = document.getElementById("modeSel");
-  modeSel.value = settings.mode || "viewport";
-  modeSel.addEventListener("change", () => saveSetting("mode", modeSel.value));
+  /* 번역 범위 UI 는 2026-08-06 에 뺐고 모드는 「현재 장」 고정이다.
+     저장값을 읽지 않는 것이 의도다 — 고르는 손잡이가 없는데 옛 저장값
+     "all" 이 몰래 살아나면 문서를 열 때마다 전량 번역이 돌아 돈이 샌다.
+     전량 번역은 스킬 CLI(translate.py)가 맡는다. */
 
   const layoutSel = document.getElementById("layoutSel");
   layoutSel.value = settings.layout || "lr";
   setLayout(layoutSel.value);
   layoutSel.addEventListener("change", () => setLayout(layoutSel.value));
-
-  /* ── 낭독 ──────────────────────────────────────────
-     설정은 `tts` 한 덩어리로 저장한다. main 이 tts:plan·tts:export 에서 통째로
-     읽어 utilityProcess 에 넘기므로, 축마다 최상위 키를 만들면 양쪽이 어긋난다. */
-  const tts = settings.tts || {};
-
-  const rate = String(tts.rate ?? 1);
-  if ([...saySpeed.options].some((o) => o.value === rate)) saySpeed.value = rate;
-
-  /* 목소리 목록은 main 이 갖고 있다(자산 리비전과 함께 움직인다). 자산이 아직
-     없으면 목록도 비는데, 그때는 재생을 눌렀을 때 오류로 끝나며 이유를 말한다 —
-     빈 선택지를 미리 채워 넣어 있는 척하지 않는다. */
-  const voices = await api.tts.voices().catch(() => []);
-  for (const v of voices) {
-    const o = document.createElement("option");
-    o.value = v; o.textContent = v;
-    sayVoice.append(o);
-  }
-  if (voices.includes(tts.voice)) sayVoice.value = tts.voice;
-  paintSay();
 })();

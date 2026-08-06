@@ -61,11 +61,6 @@
   --accent: #3D5A80;
   --mark: #EFE6D2;
   --warn: #A8741C;
-  /* 낭독은 자기 색을 쓴다. 짝 강조(--accent)와 같은 색이면 「지금 짚은 단락」과
-     「지금 읽는 자리」가 구별되지 않는다 — 둘은 동시에 켜져 있을 수 있다.
-     청록은 이 종이색 팔레트에서 슬레이트블루와 가장 멀고, 경고(--warn)의
-     호박색과도 겹치지 않는다. */
-  --say: #1F7A63;
 }
 
 [data-theme="night"] {
@@ -77,7 +72,6 @@
   --accent: #6FA8DC;
   --mark: #2A3540;
   --warn: #C79A45;
-  --say: #5FD3AE;
 }
 
 * { box-sizing: border-box; }
@@ -126,6 +120,43 @@ body {
   letter-spacing: .04em; white-space: nowrap;
 }
 .bar .ctl select { max-width: 11rem; }
+
+/* 바 컨트롤은 네이티브 위젯을 쓰지 않는다 — OS 룩은 테마(밝게/어둡게)를
+   따라오지 못한다. 알약형(rounded) 웹 버튼으로 통일한다. */
+.bar button,
+.bar select {
+  appearance: none;
+  -webkit-appearance: none;
+  font: inherit;
+  font-size: var(--ui-size);
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: .3em 1.05em;
+  line-height: 1.5;
+  cursor: pointer;
+  transition: background var(--dur), border-color var(--dur);
+}
+.bar button:hover,
+.bar select:hover {
+  background: color-mix(in srgb, var(--ink) 12%, transparent);
+}
+/* 열려 있는 패널의 버튼과 어두운 테마 상태는 채워서 표시한다 */
+.bar button[aria-expanded="true"],
+.bar button[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+/* appearance:none 은 셀렉트 화살표도 지운다 — 회색 갈매기를 배경으로 되살린다
+   (중간 회색이라 두 테마 모두에서 보인다) */
+.bar select {
+  padding-right: 2em;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M1 1l4 4 4-4' fill='none' stroke='%23888E96' stroke-width='1.6' stroke-linecap='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right .8em center;
+}
 
 @media (max-width: 620px) {
   .bar .ctl > span { display: none; }
@@ -415,56 +446,6 @@ body.dragging { user-select: none; cursor: col-resize; }
 .dict .links a:hover { background: var(--mark); }
 .dict .links .note { margin-left: auto; font-size: .88em; color: var(--ink-soft); }
 
-/* 낭독 — 툴바 안에 산다. 고른 것이 없으면 조용히 흐려져 있고, 무언가를 고르면
-   깨어난다. 팝업이었을 때는 고를 때마다 창이 떠서 본문을 가렸다. */
-.say {
-  display: flex; align-items: center; gap: .3rem;
-  margin-right: .5rem;
-  opacity: .45; transition: opacity var(--dur);
-}
-.say[data-ready="true"] { opacity: 1; }
-
-.say button {
-  min-width: 2rem; padding: .18rem .4rem;
-  border: 1px solid var(--rule); border-radius: 4px;
-  background: var(--bg); color: var(--ink);
-  cursor: pointer; line-height: 1.3;
-}
-.say button:hover:not(:disabled) { background: var(--mark); }
-.say button:disabled { opacity: .45; cursor: default; }
-
-/* 상태 문구는 자리를 늘 차지한다 — 「준비 중」이 사라질 때 버튼이 움직이면
-   누르려던 손이 빗나간다. */
-.say .state {
-  min-width: 7.5rem; color: var(--ink-soft);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.say .state.err { color: var(--warn); }
-.say select { max-width: 6rem; }
-
-/* 좁아지면 안쪽부터 접는다. 재생·정지는 마지막까지 남는다 — 소리가 나는 중에
-   멈출 길이 없어지는 것이 가장 나쁘다. */
-@media (max-width: 1100px) { .say .state { min-width: 0; width: 3.2rem; } }
-@media (max-width: 900px)  { .say #sayVoice, .say #sayExport { display: none; } }
-@media (max-width: 760px)  { .say #saySpeed, .say .state { display: none; } }
-
-/* 낭독 표시는 두 겹이다 — **읽을 영역**을 옅게 깔고 그 위에 **지금 읽는 낱말**을
-   조금 진하게 얹는다. 한 겹만 쓰면 둘 중 하나를 잃는다: 낱말만 칠하면 어디까지
-   읽을 것인지 안 보이고, 영역만 칠하면 어디를 읽고 있는지 안 보인다.
-
-   둘 다 배경만 칠하고 글자색은 건드리지 않는다 — 색까지 바꾸면 읽던 줄의 대비가
-   낱말마다 튄다. 반투명이라 겹친 자리는 저절로 더 진해진다.
-
-   낱말 자리는 추정이다. Supertonic 의 duration_predictor 는 발화 전체 길이 하나만
-   주므로(dims: [1]) 조각(문장) 경계만 정확하고 그 안은 글자 수로 나눈다 —
-   spec-tts.md §15.3. */
-::highlight(say-range) {
-  background-color: color-mix(in srgb, var(--say) 14%, transparent);
-}
-::highlight(say-word) {
-  background-color: color-mix(in srgb, var(--say) 38%, transparent);
-}
-
 /* 목차 — 본문을 덮지 않고 밀어낸다 */
 .toc {
   position: fixed; top: var(--bar-h); left: 0; z-index: 60;
@@ -580,21 +561,9 @@ body.dragging { user-select: none; cursor: col-resize; }
 }
 .keydlg button:hover { filter: brightness(1.08); }
 
-/* 상태 표시줄 */
-.status {
-  position: fixed; right: 0; bottom: 0; z-index: 45;
-  display: flex; align-items: center; gap: .7rem;
-  padding: .35rem .8rem;
-  background: color-mix(in srgb, var(--bg) 92%, transparent);
-  backdrop-filter: blur(8px);
-  border-top: 1px solid var(--rule); border-left: 1px solid var(--rule);
-  border-radius: 6px 0 0 0;
-  font-family: var(--font-ui); font-size: calc(var(--ui-size) * .88);
-  color: var(--ink-soft);
-}
 /* 문서 여는 중.
-   아래 가운데에 둔다 — 왼쪽은 목차(z-index 60)가 덮고 오른쪽은 번역 상태가
-   쓴다. 목차 위로 올라와야 하므로 z-index 도 그보다 높다. 잠깐 떠 있다 사라진다. */
+   아래 가운데에 둔다 — 목차(z-index 60) 위로 올라와야 하므로 z-index 도
+   그보다 높다. 잠깐 떠 있다 사라진다. */
 .importing {
   position: fixed; left: 50%; bottom: 0; transform: translateX(-50%); z-index: 68;
   display: flex; align-items: center; gap: .6rem;
@@ -626,29 +595,18 @@ body.dragging { user-select: none; cursor: col-resize; }
   border: 1px solid var(--rule); border-radius: var(--radius); cursor: pointer;
 }
 
-.status b { font-weight: 600; color: var(--ink); }
-.status .bar-track {
-  width: 8rem; height: 3px; border-radius: 2px; background: var(--rule); overflow: hidden;
-}
-.status .bar-fill { height: 100%; width: 0; background: var(--accent); transition: width .3s; }
-
 /* 시작 화면 */
 .welcome {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 1.1rem; min-height: 70vh; text-align: center;
   font-family: var(--font-ui); color: var(--ink-soft);
 }
-.welcome h2 {
-  margin: 0; font-size: 1.6rem; font-weight: 700; color: var(--ink); letter-spacing: -.02em;
-}
-.welcome p { margin: 0; max-width: 30rem; line-height: 1.7; font-size: .9rem; }
 .welcome button {
   font: inherit; font-size: .95rem; font-weight: 600;
   color: var(--bg); background: var(--accent);
   border: 0; border-radius: 6px; padding: .55rem 1.4rem; cursor: pointer;
 }
 .welcome button:hover { filter: brightness(1.08); }
-.welcome .kinds { font-size: .78rem; opacity: .8; }
 
 /* 알림 */
 .notice {

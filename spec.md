@@ -388,11 +388,13 @@ scroll → 150ms 유휴 대기 → 뷰포트 블록 ID 범위 계산
 
 | 모드 | 시딩 | 용도 |
 |---|---|---|
-| 따라가기 | 뷰포트만 | 훑어보기, 비용 최소 |
-| 장 단위 | 현재 장 전체 | 한 장 정독 |
-| 전체 | 전 블록 P3 | 완역본 확보 |
+| 현재 장 | 눈이 머무는 장 전체(h1·h2 경계), 보이는 블록은 P0 | 한 장 정독 |
+| 전체 | 전 블록 P3, 보이는 블록은 P0 로 승격 | 완역본 확보 |
 
-세 모드가 같은 큐를 쓰므로 도중에 바꿔도 이미 한 일이 버려지지 않는다.
+두 모드가 같은 큐를 쓰므로 도중에 바꿔도 이미 한 일이 버려지지 않는다.
+
+> 「따라가기」(뷰포트만 시딩)는 2026-08-06 에 뺐다 — 스크롤할 때마다 찔끔찔끔
+> 번역이 시작되는 것이 읽기를 방해했고, 훑어보기는 「현재 장」이 대신한다.
 
 ### 4.5 deslop
 
@@ -430,7 +432,7 @@ interface ParallaxAPI {
   // 번역
   translate: {
     request(docId: string, ids: string[], priority: Priority): Promise<void>;
-    setMode(docId: string, mode: "viewport" | "chapter" | "all"): Promise<void>;
+    setMode(docId: string, mode: "chapter" | "all"): Promise<void>;
     pause(docId: string): Promise<void>;
     stats(docId: string): Promise<{ done: number; total: number; spendUsd: number }>;
   };

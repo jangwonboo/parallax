@@ -26,3 +26,7 @@ out/
 # 스킬을 푼 사본 — 정본은 pdf-ko-translate.zip
 pdf-ko-translate/
 blocks.txt
+
+# ko-style 은 소스를 추적한다(CONTEXT.md) — 파이썬 부산물만 뺀다
+__pycache__/
+*.pyc

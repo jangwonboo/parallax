@@ -1,3 +1,8 @@
+/* 휴면 코드 — 앱이 .parallax 전용 리더로 좁혀지면서(2026-08-06) 호출부가 사라졌다.
+   지금 main/index.ts 가 쓰는 건 Cancelled 와 cancelImport 둘뿐이고, 파이썬 sidecar
+   경로(findSkillDir·extractPdf·pagecheckPdf·readExtraction)는 아무도 부르지 않는다.
+   앱 안에서 다시 PDF 를 받을 여지를 두려고 남겼다. 대신 스킬 쪽 CLI 인자가 바뀌어도
+   여기서는 안 깨지므로, extract.py·pagecheck.py 의 인자를 손대면 이 파일도 같이 보라. */
 import { readFileSync, existsSync, mkdtempSync, rmSync } from "node:fs";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { basename, extname, join } from "node:path";

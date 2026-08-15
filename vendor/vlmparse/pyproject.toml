@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vlmparse"
+version = "0.1.0"
+description = "PDF 를 VLM OCR 로 읽어 구조 있는 블록으로 뽑는다 — 수식·표·그림을 지우지 않고"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "jangwonboo" }]
+keywords = ["pdf", "ocr", "vlm", "datalab", "marker", "document-parsing", "latex"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Topic :: Text Processing :: Markup",
+]
+dependencies = [
+  "httpx>=0.24",
+  "pymupdf>=1.23",
+  # TLS 검사 장비가 있는 망에서 검증을 OS 에 맡긴다. 없어도 돌지만, 그런 망에서는
+  # 모든 호출이 CERTIFICATE_VERIFY_FAILED 로 죽는다.
+  "truststore>=0.9; python_version >= '3.10'",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+vlmparse = "vlmparse.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/jangwonboo/vlmparse"
+Issues = "https://github.com/jangwonboo/vlmparse/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

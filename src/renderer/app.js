@@ -172,6 +172,14 @@ function findIndexAt(y) {
    글로 보이는 것은 읽을 수 있지만, 문장이 수식으로 깨지면 못 읽는다. */
 const MATH_SPLIT = /(\$\$[^$]+?\$\$|\$[^$\n]+?\$)/g;
 const MATH_SIGNAL = /[\\^_{}]|[α-ωΑ-Ω∑∫√≈≠≤≥±×÷∞∂]/;
+/* LaTeX 신호가 없어도 수식인 것들이 있다 — `$-1$` · `$0$` · `$1/2$` 처럼 판독기가
+   기울임 변수·값에 붙여 준 것. 이것까지 글자로 두면 본문에 `$-1$` 이 그대로
+   보인다(실측: beyond_weird 92쪽).
+
+   돈 표기와 가르는 기준은 **영어 낱말이 들어 있는가**다. `$5 million and the
+   next one $` 는 사이에 낱말이 있고, 진짜 수식 조각에는 없다. 길이 상한도
+   둔다 — 길수록 문장일 확률이 높다. */
+const MATH_BARE = (s) => s.length <= 16 && !/[A-Za-z]{2,}/.test(s) && /[0-9A-Za-z]/.test(s);
 
 /** 문자열을 el 에 넣는다. 수식이 섞여 있으면 그 조각만 KaTeX 로 그린다. */
 function setTextWithMath(el, text) {
@@ -187,7 +195,7 @@ function setTextWithMath(el, text) {
     const inline = !display && part.startsWith("$") && part.endsWith("$") && part.length > 2;
     const tex = display ? part.slice(2, -2) : inline ? part.slice(1, -1) : null;
 
-    if (tex === null || !MATH_SIGNAL.test(tex)) {
+    if (tex === null || !(MATH_SIGNAL.test(tex) || MATH_BARE(tex))) {
       el.appendChild(document.createTextNode(part));   // 돈 표기 등 — 글자 그대로
       continue;
     }

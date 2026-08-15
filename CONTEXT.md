@@ -31,6 +31,18 @@
 
 > **낭독(TTS)은 2026-08-06 에 통째로 걷어냈다**(사용자 지시). 지운 것: `src/main/tts/`·`vendor/supertonic-nodejs/`·`scripts/fetch-tts-assets.mjs`·`spec-tts.md`, main 의 `tts:*` IPC 전부, preload 의 `tts` 표면과 `tts:state`/`tts:progress` 채널, 렌더러의 낭독 툴바(`sayBar`)·하이라이트·mp3 내보내기, `types.ts` 의 `isSpeakable`, 의존성 `onnxruntime-node`·`@breezystack/lamejs` 와 `asarUnpack`, `.gitignore` 의 `tts-assets/`·`tts.zip` 항목. `.npmrc` 와 `scripts/rebuild-native.mjs` 는 better-sqlite3 용이라 남는다. 사전 열기(더블클릭)와 짝 강조는 낭독과 무관하게 그대로다. 아래 낭독 관련 기록은 전사(前史)로만 남긴 것이다 — johnb PC 의 `tts-assets/` 정션과 `tts.zip` 도 이제 쓸 데가 없다.
 
+2026-08-16 이어서 — **《Beyond Weird》의 망가진 수식을 원본 PDF 로 되살렸다**(사용자 지시). `beyond_weird.parallax` 의 **35블록**에 구분자가 돌아왔고 맨몸 LaTeX 는 **0**이 됐다(수식 구간 254개). 백업은 `beyond_weird.parallax.bak-math-202608152238`.
+
+**블록 글을 통째로 갈아 끼우지 않았다.** 재판독본에서 **수식 구간만** 뽑아 기존 글의 같은 자리를 `$…$` 로 감쌌다 — 그래야 개조식 번역과 그동안의 사후 손질이 그대로 남는다. 21쪽만 다시 읽어 **$0.20**. `vlmparse` 로 읽었다(수식 보존 규칙이 거기 있다).
+
+세 겹으로 감쌌다. ① 그 쪽의 재판독 수식(가장 확실하다) ② 책 전체의 재판독 수식 중 **LaTeX 명령이 든 것만**(판독은 실행마다 조금씩 달라 어떤 쪽은 수식을 아예 안 잡아 준다 — p74·p155 가 그랬다. 숫자만 있는 것은 다른 쪽에 옮기면 엉뚱한 숫자를 잡으므로 제외) ③ 그래도 남은 **맨 LaTeX 토큰**만 딱 감싼다(`dime \rightarrow cat` → `dime $\rightarrow$ cat`).
+
+**예행(dry-run)이 두 번 살렸다.** 처음 돌렸을 때 ① 홑글자 수식(`x`·`y`·`z` — 판독기가 이탤릭 변수를 정당하게 수식으로 준다)이 낱말 속에서 잡혀 `physicist` → `ph$y$sicist`, `Max` → `Ma$x$` 가 됐고, ② 자리표시자를 `\x00{번호}\x00` 로 만든 탓에 짧은 숫자 수식(`0`·`-1`)이 **그 번호 안에서** 매칭돼 `180^\circ` 가 `$0$` 로 뭉개졌다. 양옆 경계 검사와 「자리표시자는 어떤 패턴에도 안 걸리는 글자 하나(U+E000~)」로 고쳤다. **파일을 고치는 일은 예행부터 붙일 것.**
+
+리더 쪽도 하나 고쳤다 — **`$-1$`·`$0$` 이 글자 그대로 보였다.** 수식 판별이 LaTeX 신호(`\ ^ _ { }`)만 봤는데, 판독기는 기울임 값에도 수식 표시를 붙인다. 돈 표기와 가르는 기준을 **「영어 낱말이 들어 있는가」**로 바꿨다(`$5 million and the next one $` 는 사이에 낱말이 있고 진짜 수식 조각에는 없다) + 길이 상한 16자. 실측: `b0614` 가 katex 4개 → **13개**, `$10 million` 가격 블록은 여전히 0개.
+
+> 확인하다 겪은 것 둘. **`vlmparse` 첫 호출이 `CERTIFICATE_VERIFY_FAILED` 로 죽었다** — TLS 검사 장비다. `truststore.inject_into_ssl()` 을 넣어 해결(스킬의 `_llm.py` 가 이미 하던 것을 옮겨 오지 않았다). 그리고 **측정 스크립트의 정규식이 텍스트에서 `s` 를 지워** 데이터가 깨진 것처럼 보였다 — DB 원문을 직접 확인해 무사함을 확인했다. **화면 측정값이 이상하면 원본부터 볼 것.**
+
 2026-08-16 — **수식이 산문으로 뭉개지던 것을 찾아 리더가 그리게 했다**(사용자 질문에서 시작).
 
 **Datalab 이 주는 형식은 이렇다**: markdown 은 `$$…$$`, **html/chunks 는 `<math>` 태그 안의 LaTeX**(MathML 이 아니다). `block_type` 에 수식 전용이 **둘** 있다 — `Equation`(별행)과 `TextInlineMath`(인라인이 든 단락). 인라인은 `balanced` 이상에서만 LaTeX 로 변환된다(`fast` 는 텍스트 레이어를 긁어 놓친다). 우리는 기본이 `accurate` 라 충족한다.

@@ -46,6 +46,7 @@ const api = {
   on(channel: string, cb: (payload: any) => void): () => void {
     const allowed = [
       "doc:opened", "block:updated", "import:progress", "stats", "keys:prompt",
+      "help:show",
     ];
     if (!allowed.includes(channel)) throw new Error(`unknown channel ${channel}`);
     const h = (_e: unknown, payload: any) => cb(payload);

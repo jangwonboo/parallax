@@ -72,6 +72,90 @@
   <div class="links" id="dLinks"></div>
 </aside>
 
+<!-- 기능 설명(도움말 → 기능 설명, F1). 네이티브 대화상자가 아니라 앱 안
+     패널이다 — 테마를 따라오고 길어도 스크롤된다. -->
+<div class="scrim" id="helpScrim" hidden></div>
+<aside class="help" id="help" data-open="false" role="dialog" aria-modal="true"
+       aria-labelledby="helpTitle" tabindex="-1">
+  <div class="head">
+    <h2 id="helpTitle">기능 설명</h2>
+    <button id="helpClose" aria-label="닫기">✕</button>
+  </div>
+  <div class="body">
+    <section>
+      <h3>읽기</h3>
+      <p>왼쪽이 원문, 오른쪽이 번역이다. 한 단락이 한 행을 이루므로 좌우가 늘 맞물린다.</p>
+      <ul>
+        <li>가운데 <b>손잡이를 끌면</b> 좌우 폭이 바뀐다. 두 번 누르면 절반으로 돌아간다(조판 패널의 「좌우 폭 균등」과 같다).</li>
+        <li>폭은 저장하지 않는다 — 시작은 언제나 반반이다.</li>
+        <li>마우스를 올린 단락은 <b>원문·번역 두 칸이 함께</b> 밝아진다. 어느 것이 짝인지 눈으로 바로 찾으라는 표시다.</li>
+        <li>드래그로 글을 고르면 <b>시작한 쪽 대역만</b> 잡힌다. 반대쪽 열이 끼어들지 않는다.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h3>목차</h3>
+      <ul>
+        <li>툴바 <b>목차</b> 로 연다. 부 &gt; 장 &gt; 절 세 단계까지 계층으로 접힌다.</li>
+        <li>왼쪽 <b>쐐기</b> 를 눌러 가지를 접고 편다. 처음에는 두 단계까지 보인다.</li>
+        <li>항목을 누르면 그 자리가 <b>툴바 바로 아래</b> 에 선다.</li>
+        <li>읽는 자리가 <b>저절로 강조</b>된다. 접힌 가지 안으로 들어가면 그 가지가 펼쳐진다.</li>
+        <li>넓은 화면에서는 목차가 본문을 밀어낼 뿐 덮지 않는다. 좁으면 겹쳐 뜨고, 항목을 고르면 닫힌다.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h3>조판</h3>
+      <p>툴바 <b>조판</b>. 결과가 본문에 바로 보이므로 슬라이더를 움직이며 맞추면 된다.</p>
+      <ul>
+        <li><b>배치</b> — 원문 왼쪽 · 번역 왼쪽. 번역을 주로 읽고 원문을 곁눈질한다면 번역을 왼쪽에 둔다.</li>
+        <li><b>글꼴</b> — 영문과 한글을 따로 고른다.</li>
+        <li><b>글꼴 크기</b> 10~24pt · <b>줄간격</b> 5단계 · <b>단락간격</b> 3단계 · <b>본문 폭</b>.</li>
+        <li>단락간격을 주면 첫 줄 들여쓰기는 자동으로 빠진다 — 단락을 나누는 장치는 하나면 된다.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h3>사전</h3>
+      <ul>
+        <li>원문의 낱말을 <b>두 번 누르면</b> 영한·영영 뜻이 뜬다. 한 번 누르는 것으로는 뜨지 않는다 — 글을 짚어 보려는 선택마다 사전이 따라 뜨면 본문을 가린다.</li>
+        <li>하이픈·아포스트로피가 든 낱말은 통째로 잡힌다(<code>self-aware</code> · <code>don't</code>).</li>
+        <li>밖을 한 번 누르거나 <b>Esc</b>, 또는 스크롤하면 닫힌다.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h3>번역</h3>
+      <ul>
+        <li>눈이 머무는 <b>장 전체</b>를 번역한다. 보이는 단락이 먼저다.</li>
+        <li>아직 오지 않은 칸은 회색 자리로 남는다.</li>
+        <li>책 전체를 한 번에 번역하는 것은 <b>스킬 CLI</b> 몫이다 — 문서를 열 때마다 전량 번역이 돌면 돈이 샌다.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h3>내보내기</h3>
+      <p><b>파일 → Markdown 내보내기</b> 는 영문·한글 <b>두 파일</b>을 낸다. 밖으로 가져가는 글은 한 언어로 읽는 글이기 때문이다. 머리글(<code>#</code>·<code>##</code>·<code>###</code>)은 목차와 같은 구조로 붙는다.</p>
+    </section>
+
+    <section>
+      <h3>단축키</h3>
+      <table class="keys">
+        <tr><td><kbd>Ctrl</kbd>+<kbd>O</kbd></td><td>문서 열기</td></tr>
+        <tr><td><kbd>F1</kbd></td><td>이 설명</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>위에 떠 있는 것부터 하나씩 닫기 — 이 설명 → 사전 → 조판 → 목차</td></tr>
+        <tr><td><kbd>Ctrl</kbd>+<kbd>+</kbd> / <kbd>−</kbd></td><td>창 전체 확대·축소(보기 메뉴)</td></tr>
+        <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>손잡이를 고른 뒤 좌우 폭 조절(<kbd>Shift</kbd> 는 5씩, <kbd>Home</kbd> 은 절반)</td></tr>
+      </table>
+    </section>
+
+    <section>
+      <h3>문서</h3>
+      <p>이 앱은 <code>.parallax</code> 파일만 연다. PDF 를 <code>.parallax</code> 로 만드는 것은 <b>pdf-ko-translate</b> 스킬이 한다 — 판독·구조 복원·용어집·번역이 거기에 있다.</p>
+    </section>
+  </div>
+</aside>
+
 <dialog class="keydlg" id="keyDlg" aria-label="Anthropic API 키">
   <form method="dialog">
     <h3>Anthropic API 키</h3>

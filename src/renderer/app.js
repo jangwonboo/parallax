@@ -808,7 +808,13 @@ function setLinks(word) {
   });
 }
 
+/* 조회 순번 — 낱말을 잇달아 짚으면 먼저 보낸 조회가 **뒤에 도착해** 지금
+   보고 있는 표제어를 덮어썼다(실측: `here` 를 짚었는데 앞서 짚은 `don't` 가
+   떠 있었다). 늦게 온 응답은 버린다. */
+let dictSeq = 0;
+
 async function showDict(word, rect) {
+  const seq = ++dictSeq;
   dWord.textContent = word; dIpa.textContent = "";
   dKo.className = "ko-gloss spin"; dKo.textContent = "…";
   dEn.className = "spin"; dEn.textContent = "…";
@@ -816,6 +822,7 @@ async function showDict(word, rect) {
   place(rect);
 
   const e = await api.dict.lookup(word);
+  if (seq !== dictSeq) return;          // 그 사이에 다른 낱말을 짚었다
   dWord.textContent = e.word || word;
   dIpa.textContent = e.ipa || "";
   dKo.className = "ko-gloss" + (e.koOk ? "" : " muted");
@@ -853,6 +860,27 @@ document.addEventListener("dblclick", (e) => {
   const WORD = /[A-Za-z\u2019'\-]/;
   try {
     const sc = range.startContainer, ec = range.endContainer;
+
+    /* ① 먼저 **안쪽으로 줄인다.** 크로미엄의 낱말 선택은 뒤따르는 공백까지
+       물고 오는 일이 잦다(실측: `Common` 더블클릭 → `Common `). 그 상태로
+       ②를 돌리면 끝이 공백 바로 뒤 글자에서 출발해 **다음 낱말을 통째로
+       삼킨다** — 사전이 `Common Marketing` 을 찾던 까닭이 이것이다. */
+    if (ec.nodeType === 3) {
+      const floor = sc === ec ? range.startOffset : 0;
+      let eo = range.endOffset;
+      while (eo > floor && !WORD.test(ec.nodeValue.charAt(eo - 1))) eo--;
+      if (eo > floor) range.setEnd(ec, eo);
+    }
+    if (sc.nodeType === 3) {
+      const ceil = sc === ec ? range.endOffset : sc.nodeValue.length;
+      let so = range.startOffset;
+      while (so < ceil && !WORD.test(sc.nodeValue.charAt(so))) so++;
+      if (so < ceil) range.setStart(sc, so);
+    }
+
+    /* ② 그 다음에야 낱말 경계까지 **바깥으로 편다** — 선택이 낱말 가운데를
+       자른 경우를 살린다. 이제 양 끝이 낱말 문자에 붙어 있어 공백을 건너뛸
+       일이 없다. */
     if (sc.nodeType === 3) {
       let so = range.startOffset;
       while (so > 0 && WORD.test(sc.nodeValue.charAt(so - 1))) so--;
@@ -863,6 +891,11 @@ document.addEventListener("dblclick", (e) => {
       while (eo < ec.nodeValue.length && WORD.test(ec.nodeValue.charAt(eo))) eo++;
       range.setEnd(ec, eo);
     }
+
+    /* 화면의 칠도 실제로 고른 낱말에 맞춘다 — 범위만 고치고 두면 선택이
+       공백·다음 낱말까지 덮인 채로 남는다. */
+    sel.removeAllRanges();
+    sel.addRange(range);
   } catch { /* 요소를 넘나드는 선택 */ }
 
   const clean = range.toString().trim().replace(/\s+/g, " ")
@@ -881,10 +914,25 @@ document.addEventListener("mousedown", (e) => {
   if (!dict.contains(e.target)) closeDict();
 });
 
+/* ── 기능 설명(도움말 → 기능 설명, F1) ───────────────
+   메뉴가 IPC 로 부르면 뜬다. 내용은 index.html 에 있다 — 붙박이 글이라
+   렌더러가 만들 것이 없고, 번역·조판과 달리 상태도 없다. */
+const help = document.getElementById("help");
+const helpScrim = document.getElementById("helpScrim");
+function setHelp(open) {
+  help.dataset.open = open ? "true" : "false";
+  helpScrim.hidden = !open;
+  if (open) { help.scrollTop = 0; help.focus(); }
+}
+document.getElementById("helpClose").onclick = () => setHelp(false);
+helpScrim.addEventListener("mousedown", () => setHelp(false));
+api.on("help:show", () => setHelp(help.dataset.open !== "true"));
+
 /* Esc — 위에 떠 있는 것부터 하나씩 닫는다. 한 번에 다 닫으면 사전을 닫으려다
    목차까지 잃는다. */
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
+  if (help.dataset.open === "true") return setHelp(false);
   if (dict.dataset.open === "true") return closeDict();
   if (typePanel.dataset.open === "true") { setTypePanel(false); return typeBtn.focus(); }
   setToc(false);
@@ -893,14 +941,23 @@ addEventListener("scroll", () => { if (dict.dataset.open === "true") closeDict()
 
 /* ── 짝 강조 ─────────────────────────────────────────── */
 let marked = [];
+function clearMate() {
+  marked.forEach((n) => n.classList.remove("mate"));
+  marked = [];
+}
 doc.addEventListener("mouseover", (e) => {
   const cell = e.target.closest?.(".cell");
   const id = cell?.parentNode?.dataset?.id;
   if (!id) return;
-  marked.forEach((n) => n.classList.remove("mate"));
+  clearMate();
   marked = [...doc.querySelectorAll(`.row[data-id="${id}"] .cell`)];
   marked.forEach((n) => n.classList.add("mate"));
 });
+/* 본문을 벗어나면 푼다. 없으면 커서가 툴바·목차로 간 뒤에도 마지막 단락이
+   켜진 채로 남는다 — `:hover` 는 저절로 풀리므로 커서 쪽 칸만 꺼지고 **반대쪽
+   칸만 남아** 짝이 아닌 것이 짝처럼 보인다. 사라지는 페이드가 가장 잘 보여야
+   할 순간이 바로 여기다. */
+doc.addEventListener("mouseleave", clearMate);
 
 /* 우하단 진행 위젯은 2026-08-06 에 뺐다(사용자 지시) — 진행·지출 집계는
    main 의 스케줄러가 계속 물고 있으므로 되살릴 일이 생기면 stats 이벤트만

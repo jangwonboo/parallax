@@ -50,6 +50,16 @@
   --hl-y: .7rem;
   --radius: 3px;
   --dur: .15s;
+  /* 짝 강조가 켜지고 꺼지는 시간. `--dur` 과 따로 둔다 — 그쪽은 목차 슬라이드·
+     조판 패널·손잡이가 함께 쓰는 값이라, 여기를 늘리려고 건드리면 목차
+     여닫힘까지 느려진다.
+
+     나가는 쪽이 길다. 사람이 「페이드」로 느끼는 것은 거의 사라지는 순간이고,
+     켜지는 것은 커서를 따라와야 하므로 빨라야 한다. 다만 너무 길게 잡으면
+     커서를 빠르게 훑을 때 사라지는 중인 단락이 여럿 겹쳐 혜성 꼬리처럼
+     보인다 — ease-out 으로 초반에 대부분 떨어뜨려 그 꼬리를 줄인다. */
+  --hl-in: .13s;
+  --hl-out: .32s;
 }
 
 [data-theme="light"] {
@@ -245,9 +255,16 @@ body {
   margin-left: -.55rem;
   margin-top: calc(var(--blockgap, 0px) - var(--hl-y));
   margin-bottom: calc(var(--blockgap-b, 0px) - var(--hl-y));
-  transition: background var(--dur), border-color var(--dur);
+  /* 쉬는 상태의 전이가 곧 **사라지는 쪽**이다. 켜질 때는 아래에서
+     transition-duration 만 덮어쓴다. 단축 `background` 가 아니라
+     `background-color` 로 좁힌다 — 바뀌는 것은 색뿐이다. */
+  transition: background-color var(--hl-out) ease-out,
+              border-color     var(--hl-out) ease-out;
 }
-.doc.linked .cell:hover, .cell.mate { background: var(--bg-soft); }
+.doc.linked .cell:hover, .cell.mate {
+  background-color: var(--bg-soft);
+  transition-duration: var(--hl-in);
+}
 .cell.mate { border-left-color: var(--accent); }
 
 .src { font-family: var(--face-src); font-weight: var(--weight-src); }
@@ -419,6 +436,71 @@ body.dragging { user-select: none; cursor: col-resize; }
 .dict .links a:hover { background: var(--mark); }
 .dict .links .note { margin-left: auto; font-size: .88em; color: var(--ink-soft); }
 
+/* ── 기능 설명 ───────────────────────────────────────
+   읽는 중에 잠깐 여는 붙박이 글이라 본문을 덮는다(목차처럼 밀어내면 조판이
+   흔들린다). 글자는 UI 크기 고정 — 본문 조판을 따라 커지면 설명이 화면을
+   넘는다(목차가 본문 조판을 따르는 것과 반대다: 목차 항목은 본문 제목 그
+   자체지만 이 글은 앱이 하는 말이다). */
+.scrim {
+  position: fixed; inset: 0; z-index: 80;
+  background: color-mix(in srgb, var(--ink) 28%, transparent);
+}
+.help {
+  position: fixed; z-index: 81;
+  top: calc(var(--bar-h) + 1.2rem); bottom: 1.2rem;
+  left: 50%; transform: translateX(-50%);
+  width: min(46rem, calc(100vw - 2.4rem));
+  display: none; flex-direction: column;
+  background: var(--bg); color: var(--ink);
+  border: 1px solid var(--rule); border-radius: calc(var(--radius) * 2);
+  box-shadow: 0 18px 48px color-mix(in srgb, var(--ink) 22%, transparent);
+  font-family: var(--font-ui); font-size: var(--ui-size); line-height: 1.62;
+}
+.help[data-open="true"] { display: flex; }
+.help:focus { outline: none; }
+
+.help .head {
+  display: flex; align-items: center; gap: .6rem;
+  padding: .9rem 1.3rem; border-bottom: 1px solid var(--rule);
+}
+.help .head h2 {
+  margin: 0; font-size: 1.15em; font-weight: 700; letter-spacing: -.01em;
+}
+.help .head button {
+  margin-left: auto; appearance: none; -webkit-appearance: none;
+  background: none; border: 0; border-radius: var(--radius);
+  color: var(--ink-soft); font: inherit; font-size: 1.1em;
+  padding: .1em .45em; cursor: pointer;
+}
+.help .head button:hover { background: var(--bg-soft); color: var(--ink); }
+
+.help .body { overflow-y: auto; padding: .4rem 1.3rem 1.6rem; }
+.help section { padding-top: 1.15rem; }
+.help section + section { border-top: 1px solid var(--rule); }
+.help h3 {
+  margin: 0 0 .45rem; font-size: 1em; font-weight: 700;
+  color: var(--accent); letter-spacing: .01em;
+}
+.help p { margin: 0 0 .5rem; }
+.help ul { margin: 0; padding-left: 1.15rem; }
+.help li { margin-bottom: .32rem; }
+.help li::marker { color: var(--ink-soft); }
+.help b { font-weight: 700; }
+.help code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .92em; background: var(--bg-soft);
+  padding: .05em .35em; border-radius: var(--radius);
+}
+.help .keys { border-collapse: collapse; width: 100%; }
+.help .keys td { padding: .3rem .6rem .3rem 0; vertical-align: baseline; }
+.help .keys td:first-child { white-space: nowrap; width: 1%; }
+.help kbd {
+  font-family: inherit; font-size: .88em;
+  border: 1px solid var(--rule); border-bottom-width: 2px;
+  border-radius: var(--radius); padding: .05em .4em;
+  background: var(--bg-soft); color: var(--ink);
+}
+
 /* 목차 — 본문을 덮지 않고 밀어낸다 */
 .toc {
   position: fixed; top: var(--bar-h); left: 0; z-index: 60;
@@ -518,7 +600,7 @@ body.dragging { user-select: none; cursor: col-resize; }
 /* ── 인쇄: 대역 조판 그대로, 가로 방향 ────────────────── */
 
 @media print {
-  .bar, .toc, .handle, .dict { display: none !important; }
+  .bar, .toc, .handle, .dict, .help, .scrim { display: none !important; }
   body { background: #fff; color: #000; }
   :root { --pad: 0; --gap: 12mm; --maxw: 100%; }
   .doc { margin: 0; padding: 0; }

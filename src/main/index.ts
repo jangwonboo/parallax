@@ -141,8 +141,15 @@ function buildMenu() {
       ],
     },
     {
+      /* 설명은 렌더러가 패널로 띄운다 — dialog.showMessageBox 는 OS 룩이라
+         테마(밝게·어둡게)를 따라오지 못하고, 글이 길어 스크롤도 안 된다. */
       label: "도움말",
       submenu: [
+        {
+          label: "기능 설명", accelerator: "F1",
+          click: () => win?.webContents.send("help:show"),
+        },
+        { type: "separator" },
         { label: "문서 형식 설명", click: () => shell.openExternal("https://sqlite.org") },
       ],
     },

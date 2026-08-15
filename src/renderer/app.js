@@ -124,15 +124,11 @@ function recomputeEstimates() {
   /* 단락 여백은 줄 수와 무관하게 블록마다 한 번 더해진다. 줄 높이의 배수다. */
   const gap = (parseFloat(cs.getPropertyValue("--para-k")) || 0) * leading * size;
 
-  /* 좌우로 놓으면 행 높이는 두 칸 중 **큰 쪽**이고, 위아래로 쌓으면 **합**이다.
-     칸 폭도 함께 넓어지므로(폭이 두 배면 줄 수는 절반) 대략 상쇄되지만, 단락
-     여백과 제목 여백은 두 번 들어간다. 실측이 곧 덮어쓰는 값이라 근사면 된다. */
-  const stacked = layout === "tb" || layout === "bt";
+  /* 행 높이는 좌우 두 칸 중 **큰 쪽**이다. 실측이 곧 덮어쓰는 값이라 근사면 된다. */
   const body = (size / BASE.size) ** 2 * (leading / BASE.leading) * (BASE.colw / Math.max(160, colw));
   const head = size / BASE.size;
   for (const k of Object.keys(BASE_EST)) {
-    const h = BASE_EST[k] * (HEAD.has(k) ? head : body) + (HEAD.has(k) ? 0 : gap);
-    estimates[k] = Math.round(stacked ? h + (HEAD.has(k) ? head * 12 : gap) : h);
+    estimates[k] = Math.round(BASE_EST[k] * (HEAD.has(k) ? head : body) + (HEAD.has(k) ? 0 : gap));
   }
 }
 
@@ -233,8 +229,7 @@ function resetDoc() {
   spacerBottom.className = "spacer";
   spacerBottom.id = "spacerBottom";
   doc.append(spacerTop, spacerBottom, handle);
-  /* 상하 배치에는 나눌 세로선이 없다 — 문서를 새로 열 때도 그대로 지킨다. */
-  handle.hidden = layout === "tb" || layout === "bt";
+  handle.hidden = false;
   mounted.clear();
   firstMounted = 0;
   lastMounted = -1;
@@ -288,7 +283,6 @@ async function renderWindow() {
     measure();
     rebuildTops();
     placeHandle();
-    updateFocus();      // 새로 마운트된 행에도 물림을 입힌다
     queueTranslation();
   } finally {
     renderPending = false;
@@ -350,46 +344,22 @@ function queueTranslation() {
 
 /* ── 분할 손잡이 ─────────────────────────────────────── */
 /* ── 배치 ────────────────────────────────────────────
-   lr 원문 왼쪽 · rl 번역 왼쪽 · tb 원문 위 · bt 번역 위. 자리만 바꾸는 것이라
-   블록도 스크롤 위치도 건드리지 않는다 — 높이만 다시 잡으면 된다. */
+   lr 원문 왼쪽 · rl 번역 왼쪽. 자리만 바꾸는 것이라 블록도 스크롤 위치도
+   건드리지 않는다 — 높이만 다시 잡으면 된다.
+
+   상하 배치(tb·bt)는 2026-08-15 사용자 지시로 걷어냈다. 함께 지운 것:
+   `recomputeEstimates` 의 stacked 분기, 상하 전용 손잡이 숨김, 읽는 쌍만
+   남기고 물리던 `updateFocus()`(+ `.row.dim`/`.row.near` CSS), 상하 그리드
+   규칙. 되살리려면 git 히스토리. 저장된 옛 값은 아래 boot 에서 lr 로 옮긴다 —
+   고르는 손잡이가 없는데 저장값만 살아 있으면 손잡이 없는 화면에 갇힌다. */
 let layout = "lr";
 function setLayout(v) {
-  layout = ["lr", "rl", "tb", "bt"].includes(v) ? v : "lr";
+  layout = v === "rl" ? "rl" : "lr";
   doc.dataset.layout = layout;
   saveSetting("layout", layout);
-  /* 손잡이는 좌우로 놓았을 때만 뜻이 있다. 상하에서는 나눌 세로선이 없다. */
-  handle.hidden = layout === "tb" || layout === "bt" || !index.length;
+  handle.hidden = !index.length;
   invalidateHeights();
-  updateFocus();
   requestAnimationFrame(placeHandle);
-}
-
-/**
- * 상하 배치에서 지금 읽는 쌍을 고르고 나머지를 물린다.
- * 기준은 화면 한가운데다 — 커서나 클릭을 따르면 스크롤만 하는 동안 초점이
- * 굳어 있고, 맨 위를 기준으로 하면 다음 쌍으로 넘어가는 순간이 너무 이르다.
- */
-function updateFocus() {
-  const on = layout === "tb" || layout === "bt";
-  if (!on) {
-    for (const el of mounted.values()) el.classList.remove("dim", "near");
-    return;
-  }
-  const mid = innerHeight / 2;
-  const rows = [...mounted.values()];
-  let best = null, bestD = Infinity;
-  for (const el of rows) {
-    const r = el.getBoundingClientRect();
-    /* 가운데를 품은 행이 있으면 그것, 없으면(빈 틈) 가장 가까운 행 */
-    const d = r.top <= mid && r.bottom >= mid ? 0 : Math.min(Math.abs(r.top - mid), Math.abs(r.bottom - mid));
-    if (d < bestD) { bestD = d; best = el; }
-  }
-  for (const el of rows) {
-    const near = el !== best
-      && (el.previousElementSibling === best || el.nextElementSibling === best);
-    el.classList.toggle("near", near);
-    el.classList.toggle("dim", el !== best && !near);
-  }
 }
 
 function placeHandle() {
@@ -582,6 +552,220 @@ document.addEventListener("mousedown", (e) => {
 /* 넓은 화면에서 목차는 본문을 밀어낼 뿐 덮지 않는다 — 항목을 눌러도 열어둔 채로
    본문만 옮긴다. 겹쳐 뜨는 좁은 화면에서만 닫는다. */
 const tocPushes = matchMedia("(min-width: 900px)");
+
+/* ── 목차 이동·강조 ──────────────────────────────────
+   툴바는 붙박이라 목표 블록을 그냥 화면 맨 위로 보내면 바 뒤에 숨는다.
+   높이는 실측한다 — --bar-h 는 rem 이라 parseFloat 로는 px 이 안 나온다. */
+const LANDING_GAP = 8;   // 바 아래 숨 쉴 자리
+const barEl = document.querySelector(".bar");
+const barH = () => (barEl ? barEl.getBoundingClientRect().height : 0);
+
+/* tops[] 의 0 은 doc 의 위쪽이 아니라 **안여백을 지난** 첫 행의 위쪽이다
+   (.doc 의 padding-top 2.5rem). doc.offsetTop 만 더하면 그만큼 늘 어긋난다 —
+   예전 `-80` 이 어정쩡했던 까닭의 절반이 이것이었다. */
+function docTop() {
+  return doc.getBoundingClientRect().top + scrollY
+    + (parseFloat(getComputedStyle(doc).paddingTop) || 0);
+}
+
+/**
+ * 목차 항목이 가리키는 블록을 툴바 바로 아래에 세운다.
+ *
+ * 한 번에 못 간다. tops[] 는 마운트되지 않은 블록에 대해 조판에서 되짚은
+ * **추정치**라(§가상 스크롤, 실측 오차 ±6%) 먼 장으로 뛰면 도착점이 이미
+ * 어긋나 있고, 도착한 뒤 renderWindow → measure → rebuildTops 가 실측으로
+ * 덮어쓰면서 목표가 **스크롤이 끝난 뒤에 또 움직인다**. 그래서 뛰고-실측하고-
+ * 남은 차이만큼 다시 뛰기를 자리가 굳을 때까지 되풀이한다.
+ *
+ * 마지막 한 걸음은 추정치가 아니라 **마운트된 행의 실제 위치**로 잰다. 일단
+ * 가까이만 가면 목표 행이 DOM 에 올라오므로, 그때부터는 추정 오차도 안여백
+ * 계산도 끼어들 자리가 없다.
+ *
+ * behavior 는 "auto" 다. 추정치 위로 부드럽게 미끄러진 뒤 보정하면 두 번
+ * 움직이는 것이 그대로 보인다 — 한 번에 제자리로 가는 편이 낫다.
+ */
+let landing = 0;
+async function gotoBlock(id) {
+  const i = index.findIndex((x) => x.id === id);
+  if (i < 0) return;
+  landing++;
+  try {
+    for (let pass = 0; pass < 5; pass++) {
+      const el = mounted.get(id);
+      const y = el
+        ? scrollY + el.getBoundingClientRect().top     // 실측 — 정확하다
+        : docTop() + tops[i];                          // 아직 멀다 — 추정으로 다가간다
+      const max = Math.max(0, document.documentElement.scrollHeight - innerHeight);
+      const want = Math.min(max, Math.max(0, y - barH() - LANDING_GAP));
+      if (Math.abs(scrollY - want) < 1) break;
+      scrollTo({ top: want, behavior: "auto" });
+      await renderWindow();          // 도착지 둘레를 실제로 마운트해 실측한다
+      /* 스크롤 이벤트 쪽이 먼저 물고 있으면 위 호출은 아무것도 안 하고 돌아온다.
+         그 경우에만 한 박자 쉬고 다시 부른다 — 아니면 추정치로 헛돈다. */
+      if (renderPending) {
+        await new Promise((r) => setTimeout(r, 32));
+        await renderWindow();
+      }
+    }
+  } finally {
+    landing--;
+  }
+  updateTocMark();
+}
+
+/* ── 목차 트리 ───────────────────────────────────────
+   레벨(h1/h2/h3)은 outline 에 이미 실려 온다 — 수사·제목 병합과 본문 오탐
+   거르기는 main 의 `Doc.outline()` 이 끝내고 보낸다. 여기서는 그리기만 한다.
+
+   깊이는 레벨 숫자가 아니라 **스택으로 정한다.** h1 다음에 곧바로 h3 가 오는
+   책에서 레벨을 그대로 들여쓰면 쓰지도 않는 단계만큼 밀린다. */
+function tocTree(items) {
+  const root = { level: 0, children: [] };
+  const stack = [root];
+  for (const h of items) {
+    while (stack.length > 1 && stack[stack.length - 1].level >= h.level) stack.pop();
+    const node = { ...h, children: [] };
+    stack[stack.length - 1].children.push(node);
+    stack.push(node);
+  }
+  return root;
+}
+
+/* 처음에는 깊이 0 만 펼친다(= 두 단계까지 보인다). signals 는 절이 249개라
+   다 펼치면 목차가 318줄이고, 그러면 계층을 만든 뜻이 없다. */
+const TOC_OPEN_DEPTH = 0;
+
+function setBranch(li, open) {
+  li.dataset.open = open ? "true" : "false";
+  const tw = li.querySelector(":scope > .item > .twist");
+  if (tw) {
+    tw.setAttribute("aria-expanded", String(open));
+    tw.setAttribute("aria-label", open ? "접기" : "펼치기");
+  }
+}
+
+function tocList(nodes, depth) {
+  const ul = document.createElement("ul");
+  ul.className = "tree";
+  for (const n of nodes) {
+    const li = document.createElement("li");
+    const item = document.createElement("div");
+    item.className = "item";
+
+    const a = document.createElement("a");
+    a.href = "#";
+    a.dataset.id = n.id;
+    a.dataset.level = String(n.level);
+    a.textContent = n.text;
+    a.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      markToc(a);                    // 착지를 기다리지 않고 곧바로 응답한다
+      gotoBlock(n.id);
+      if (!tocPushes.matches) setToc(false);
+    });
+
+    if (n.children.length) {
+      const sub = tocList(n.children, depth + 1);
+      sub.id = `tocsub-${n.id}`;
+      const tw = document.createElement("button");
+      tw.type = "button";
+      tw.className = "twist";
+      tw.setAttribute("aria-controls", sub.id);
+      /* 손잡이는 항목을 여는 것이 아니라 가지를 접는 것이다 — 클릭이 위로
+         새어 나가 본문이 따라 움직이면 안 된다. */
+      tw.addEventListener("click", (ev) => {
+        ev.preventDefault(); ev.stopPropagation();
+        setBranch(li, li.dataset.open !== "true");
+      });
+      item.append(tw, a);
+      li.append(item, sub);
+      setBranch(li, depth <= TOC_OPEN_DEPTH);
+    } else {
+      item.append(a);
+      li.append(item);
+    }
+    ul.append(li);
+  }
+  return ul;
+}
+
+function renderToc(items) {
+  toc.textContent = "";
+  if (!items.length) {
+    const p = document.createElement("p");
+    p.textContent = "목차 없음";
+    toc.append(p);
+    return;
+  }
+  toc.append(tocList(tocTree(items).children, 0));
+}
+
+/* outline 은 문서 순이지만 담고 있는 것은 블록 id 다. 스크롤 위치로 훑으려면
+   index 안의 자리로 바꿔 둬야 한다 — 문서를 열 때 한 번 만든다. */
+let outlinePos = [];
+let tocLinks = [];
+let tocMarked = null;
+
+function buildTocIndex() {
+  /* index 에 없는 항목은 아예 뺀다 — 자리로 -1 이 섞이면 아래 이분 탐색이
+     기대는 오름차순이 깨진다. */
+  tocLinks = []; outlinePos = []; tocMarked = null;
+  const pos = new Map(index.map((x, i) => [x.id, i]));
+  for (const a of toc.querySelectorAll("a[data-id]")) {
+    const p = pos.get(a.dataset.id);
+    if (p === undefined) continue;
+    tocLinks.push(a); outlinePos.push(p);
+  }
+}
+
+function markToc(a) {
+  if (tocMarked === a) return;
+  tocMarked?.removeAttribute("aria-current");
+  tocMarked = a || null;
+  if (!a) return;
+  a.setAttribute("aria-current", "true");
+  /* 접힌 가지 안이면 펼친다 — 읽고 있는 자리가 목차에서 사라지면 안 된다.
+     펼치기만 하고 접지는 않는다. 지나온 가지를 도로 닫으면 손으로 펼쳐 둔
+     것까지 쓸려 나가고, 스크롤을 되돌릴 때마다 목차가 여닫힌다. */
+  for (let li = a.closest("li")?.parentElement?.closest("li"); li;
+       li = li.parentElement?.closest("li")) {
+    if (li.dataset.open === "false") setBranch(li, true);
+  }
+  /* 목차를 열어둔 채 읽으므로 강조가 패널 밖으로 나가면 따라 올린다. 늘
+     가운데로 끌면 목차를 눈으로 훑는 동안 발밑이 움직인다 — 벗어날 때만. */
+  if (toc.dataset.open !== "true") return;
+  const ar = a.getBoundingClientRect(), tr = toc.getBoundingClientRect();
+  if (ar.top < tr.top + 4 || ar.bottom > tr.bottom - 4) {
+    toc.scrollTop += ar.top - tr.top - tr.height / 3;
+  }
+}
+
+/**
+ * 화면 맨 위(툴바 아래)에 걸린 블록이 속한 제목을 강조한다.
+ *
+ * 걸린 블록은 tops[] 로 역산하지 않고 **마운트된 행의 실제 위치**에서 찾는다.
+ * tops[] 는 창 밖 블록에 대해 추정치라 문서 끝으로 갈수록 오차가 쌓여, 실측
+ * 에서 마지막 구간의 강조가 한 장 뒤처졌다. 창 안은 어차피 다 DOM 에 있으니
+ * 훑으면 그만이다(30~40행 — measure() 가 이미 같은 수를 읽는다). */
+function updateTocMark() {
+  if (landing || !tocLinks.length || !index.length) return;
+  const line = barH() + LANDING_GAP + 1;
+  let i = -1;
+  for (let k = firstMounted; k <= lastMounted; k++) {
+    const el = mounted.get(index[k].id);
+    if (el && el.getBoundingClientRect().bottom > line) { i = k; break; }
+  }
+  /* 창이 아직 없거나 전부 판정선 위에 있으면 추정으로 물러난다 */
+  if (i < 0) i = lastMounted >= 0 ? lastMounted : findIndexAt(scrollY - docTop() + line);
+  /* 자리가 i 이하인 마지막 제목. outlinePos 는 오름차순이라 이분 탐색. */
+  let lo = 0, hi = outlinePos.length - 1, best = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (outlinePos[mid] <= i) { best = mid; lo = mid + 1; }
+    else hi = mid - 1;
+  }
+  markToc(best >= 0 ? tocLinks[best] : null);
+}
 
 /* 문서 열기는 앱 메뉴(파일 → 열기…, Ctrl+O)로만 한다. 빈 화면의 버튼은
    문서가 아직 없을 때의 유일한 진입점이라 남긴다. */
@@ -777,20 +961,7 @@ api.on("doc:opened", async (e) => {
   for (const b of all) loaded.set(b.id, b);
   index = all.map((b) => ({ id: b.id, type: b.type, h: heights[b.id] || estimateOf(b) }));
 
-  toc.innerHTML = outline.length
-    ? outline.map((h) => `<a href="#" data-id="${h.id}" data-level="${h.level}">${
-        h.text.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c]))}</a>`).join("")
-    : "<p>목차 없음</p>";
-  toc.querySelectorAll("a").forEach((a) => {
-    a.addEventListener("click", (ev) => {
-      ev.preventDefault();
-      const i = index.findIndex((x) => x.id === a.dataset.id);
-      if (i >= 0) scrollTo({ top: doc.offsetTop + tops[i] - 80, behavior: "smooth" });
-      toc.querySelectorAll("a[aria-current]").forEach((x) => x.removeAttribute("aria-current"));
-      a.setAttribute("aria-current", "true");
-      if (!tocPushes.matches) setToc(false);
-    });
-  });
+  renderToc(outline);
 
   welcome.remove?.();
   resetDoc();
@@ -821,6 +992,9 @@ api.on("doc:opened", async (e) => {
   recomputeEstimates();
   for (const it of index) if (!heights[it.id]) it.h = estimateOf(it);
   rebuildTops();
+
+  buildTocIndex();
+  updateTocMark();
 });
 
 api.on("block:updated", async ({ ids }) => {
@@ -874,10 +1048,8 @@ addEventListener("scroll", () => {
   if (ticking) return;
   ticking = true;
   requestAnimationFrame(() => {
-    const h = document.documentElement.scrollHeight - innerHeight;
-    document.getElementById("prog").style.width = (h > 0 ? (scrollY / h) * 100 : 0) + "%";
     renderWindow();
-    updateFocus();      // renderWindow 는 창이 바뀔 때만 돈다 — 초점은 매 프레임 따라간다
+    updateTocMark();    // renderWindow 는 창이 바뀔 때만 돈다 — 강조는 매 프레임 따라간다
     ticking = false;
   });
 }, { passive: true });
@@ -930,8 +1102,11 @@ addEventListener("resize", () => invalidateHeights());
      "all" 이 몰래 살아나면 문서를 열 때마다 전량 번역이 돌아 돈이 샌다.
      전량 번역은 스킬 CLI(translate.py)가 맡는다. */
 
+  /* 옛 저장값 "tb"·"bt" 는 "lr" 로 옮긴다(2026-08-15 상하 배치 제거).
+     그대로 두면 셀렉트가 빈 값이 되고 손잡이 없는 화면에 갇힌다 —
+     "viewport" → "chapter" 이관과 같은 처리다. */
   const layoutSel = document.getElementById("layoutSel");
-  layoutSel.value = settings.layout || "lr";
+  layoutSel.value = settings.layout === "rl" ? "rl" : "lr";
   setLayout(layoutSel.value);
   layoutSel.addEventListener("change", () => setLayout(layoutSel.value));
 })();

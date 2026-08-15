@@ -35,6 +35,37 @@ CREATE TABLE IF NOT EXISTS page_check (
 );
 `;
 
+/* ── 목차 다듬기 ─────────────────────────────────────
+   여기서 하는 일은 데이터를 고치는 것이 아니라 **목차를 조립하는 것**이다.
+   블록은 그대로 두고 outline() 이 내보내는 목록만 손본다 — 되돌리려면 이
+   함수 둘만 지우면 되고, 이미 만들어 둔 .parallax 를 다시 변환할 필요도 없다. */
+
+/** 이보다 긴 것은 제목이 아니라 본문이다(근거는 outline() 주석). */
+const MAX_HEADING = 120;
+
+/** 「CHAPTER 1」·「PART ONE」·「제 3 장」처럼 **수사뿐**인 제목인가.
+ *
+ *  끝을 물린 것(`$`)이 중요하다. 「Part I — Foundational Marketing Signals」
+ *  처럼 수사와 제목이 이미 한 줄에 있는 것은 합칠 것이 없으므로 걸리면 안 된다.
+ *
+ *  번호가 붙은 것만 본다. 「INTRODUCTION」·「CONCLUSION」 같은 맨 수사는
+ *  일부러 뺐다 — 뒤따르는 것이 그 부의 제목인지 첫 절인지 데이터로 구분되지
+ *  않는다(실측: INTRODUCTION 다음의 「Unheimlich」는 제목이 아니라 첫 절로
+ *  보인다). 잘못 합치면 절 하나가 목차에서 사라진다. */
+const ORDINAL =
+  "one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|" +
+  "fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty";
+const LABEL_EN = new RegExp(
+  `^(chapter|part|book|section|appendix)\\s+([0-9]{1,3}|[ivxlcdm]{1,6}|${ORDINAL})[.:]?$`,
+  "i"
+);
+const LABEL_KO = /^제?\s*[0-9]{1,3}\s*[장부편]$/;
+
+function isNumberedLabel(text: string): boolean {
+  const t = text.trim();
+  return LABEL_EN.test(t) || LABEL_KO.test(t);
+}
+
 export class Doc {
   readonly db: Database.Database;
   readonly path: string;
@@ -214,21 +245,59 @@ export class Doc {
   }
 
   outline(): T.Heading[] {
-    return this.db
+    const rows: any[] = this.db
       .prepare(
         /* 목차는 늘 원문이다. 번역이 도착하는 대로 항목이 바뀌면 위치를 기억할
-           수 없고, 번역된 것과 아닌 것이 섞여 목록이 두 언어로 갈린다. */
-        `SELECT id, ord, type, src text
-         FROM block WHERE type IN ('h1','h2','h3') AND flags & ${T.DROPPED} = 0
-         ORDER BY ord`
+           수 없고, 번역된 것과 아닌 것이 섞여 목록이 두 언어로 갈린다.
+
+           rn 은 **버리지 않은 블록 전체**에서의 자리다. 제목 둘이 정말 맞붙어
+           있는지(사이에 본문이 없는지) 판별하는 데 쓴다 — ord 차이로 재면
+           안 된다. ord 는 성기게 매겨져 간격이 일정하지 않다. */
+        `WITH b AS (
+           SELECT id, ord, type, src, ROW_NUMBER() OVER (ORDER BY ord) rn
+           FROM block WHERE flags & ${T.DROPPED} = 0
+         )
+         SELECT id, ord, type, src text, rn FROM b
+         WHERE type IN ('h1','h2','h3') ORDER BY ord`
       )
-      .all()
-      .map((r: any) => ({
-        id: r.id,
-        ord: r.ord,
+      .all();
+
+    const heads = rows
+      /* 구조 인식이 본문 한 문단을 제목으로 잘못 잡는 일이 있다(실측: 한 책에
+         129자짜리 문단이 h2 로 들어와 목차에 통째로 박혀 있었다). 네 책의 진짜
+         제목 최장은 95자라 120 을 넘으면 제목이 아니라고 본다. 파일은 그대로
+         두고 목차에서만 감춘다. */
+      .filter((r) => r.text.length <= MAX_HEADING)
+      .map((r) => ({
+        id: r.id as string,
+        ord: r.ord as number,
         level: Number(r.type.slice(1)) as 1 | 2 | 3,
-        text: r.text,
+        text: r.text as string,
+        rn: r.rn as number,
       }));
+
+    /* 수사와 제목이 두 블록으로 갈려 있는 책이 많다 — 「CHAPTER 1」 다음 줄에
+       「The Meaning of Meaning」. 그대로 두면 수사가 부모, 제목이 자식으로
+       보여 위계가 한 칸씩 밀린다. 맞붙어 있으면 한 항목으로 합친다.
+
+       클릭 목표(id)와 자리(ord)는 **앞의 수사 블록**을 그대로 쓴다. 그래야
+       목차를 눌렀을 때 장이 열리는 자리에 정확히 선다. */
+    const out: T.Heading[] = [];
+    for (let i = 0; i < heads.length; i++) {
+      const cur = heads[i], next = heads[i + 1];
+      const merge =
+        next &&
+        next.rn === cur.rn + 1 &&        // 사이에 본문이 없다
+        next.level >= cur.level &&       // 제목이 수사보다 얕아지지는 않는다
+        isNumberedLabel(cur.text) &&
+        !isNumberedLabel(next.text);
+      out.push({
+        id: cur.id, ord: cur.ord, level: cur.level,
+        text: merge ? `${cur.text} · ${next.text}` : cur.text,
+      });
+      if (merge) i++;                    // 제목은 흡수됐다
+    }
+    return out;
   }
 
   /** 번역 대상이면서 아직 안 된 블록. 스케줄러가 쓴다. */

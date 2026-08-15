@@ -31,6 +31,17 @@
 
 > **낭독(TTS)은 2026-08-06 에 통째로 걷어냈다**(사용자 지시). 지운 것: `src/main/tts/`·`vendor/supertonic-nodejs/`·`scripts/fetch-tts-assets.mjs`·`spec-tts.md`, main 의 `tts:*` IPC 전부, preload 의 `tts` 표면과 `tts:state`/`tts:progress` 채널, 렌더러의 낭독 툴바(`sayBar`)·하이라이트·mp3 내보내기, `types.ts` 의 `isSpeakable`, 의존성 `onnxruntime-node`·`@breezystack/lamejs` 와 `asarUnpack`, `.gitignore` 의 `tts-assets/`·`tts.zip` 항목. `.npmrc` 와 `scripts/rebuild-native.mjs` 는 better-sqlite3 용이라 남는다. 사전 열기(더블클릭)와 짝 강조는 낭독과 무관하게 그대로다. 아래 낭독 관련 기록은 전사(前史)로만 남긴 것이다 — johnb PC 의 `tts-assets/` 정션과 `tts.zip` 도 이제 쓸 데가 없다.
 
+2026-08-16 이어서 — **vlmparse 를 subtree 로 물리고 파이프라인의 수식 손실을 고쳤다**(사용자 지시). 이제 **새로 변환하는 책도 수식을 지키지 않는다** — 아니, 지운다가 아니라 **지킨다**.
+
+`pagecheck.py` 의 Datalab 덩어리 **188줄이 32줄**이 됐다. 429 백오프·폴링·과금 집계·그림 수확·chunks 대응이 전부 `vlmparse` 로 갔고, 남은 것은 얇은 위임 셋(`datalab_key`·`datalab_read_page`·`chunk_items`)뿐이다. 옮기면서 고쳐진 것이 **수식 보존**이다 — 옛 `html_clean` 이 `<math>` 를 걷어내던 자리가 이제 인라인 `$…$`·별행 `$$…$$` 로 남는다.
+
+- **`equation` 도 번역 대상이 아니다.** `rebuild_page` 의 두 경로(빈 쪽·일반)에서 `figure` 와 같이 `translate=False` 로 둔다. 수식의 `src` 는 LaTeX 라 번역할 것도, 판독 텍스트라 할 것도 아니다.
+- **스킬은 zip 하나로 배포돼 설치 단계가 없다** — `findSidecar()` 가 폴더를 찾을 뿐이라 `pip install` 을 시킬 자리가 없다. 그래서 `pip` 의존이 아니라 **사본을 zip 안에** 넣는다: `scripts/vlmparse/`. 스크립트는 자기 폴더가 `sys.path[0]` 이므로 `import vlmparse` 가 그대로 걸린다. 저장소는 독립을 유지하고 zip 은 자족한다 — 이것이 subtree 를 고른 이유다.
+- **`node scripts/sync-vlmparse.mjs [--zip]`** 이 `vendor/vlmparse/src/vlmparse` → 스킬 사본 복사와 zip 재포장을 한다. 저장소를 오가는 것은 `git subtree pull/push --prefix=vendor/vlmparse`.
+- 개발 중에는 스킬 사본이 없어도 된다 — `ImportError` 면 `vendor/vlmparse/src` 를 직접 본다.
+
+실측: 풀어 놓은 zip(29항목, 전 19)에서 `pagecheck.chunk_items` 가 `Equation` → `[{'type':'equation','text':'$$E=mc^2$$'}]` 를 낸다. `pagecheck.py --help` 정상, 위임 셋과 `Spend` 객체 연결 확인.
+
 2026-08-16 이어서 — **《Beyond Weird》의 망가진 수식을 원본 PDF 로 되살렸다**(사용자 지시). `beyond_weird.parallax` 의 **35블록**에 구분자가 돌아왔고 맨몸 LaTeX 는 **0**이 됐다(수식 구간 254개). 백업은 `beyond_weird.parallax.bak-math-202608152238`.
 
 **블록 글을 통째로 갈아 끼우지 않았다.** 재판독본에서 **수식 구간만** 뽑아 기존 글의 같은 자리를 `$…$` 로 감쌌다 — 그래야 개조식 번역과 그동안의 사후 손질이 그대로 남는다. 21쪽만 다시 읽어 **$0.20**. `vlmparse` 로 읽었다(수식 보존 규칙이 거기 있다).

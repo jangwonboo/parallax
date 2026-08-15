@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# 비밀
+.env
+.env.*
+!.env.example
+
+# 작업 부산물 — 쪽 이미지와 판독 캐시
+.*-vlmparse/
+.vlmparse-cache/
+*.pdf

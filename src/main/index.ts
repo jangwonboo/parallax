@@ -2,7 +2,7 @@ import {
   app, BrowserWindow, ipcMain, dialog, safeStorage, Menu, shell, nativeTheme,
 } from "electron";
 import { join, basename } from "node:path";
-import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, rmSync } from "node:fs";
 import { Doc } from "./db";
 import { Scheduler } from "./translate/scheduler";
 import * as Imp from "./importers";
@@ -21,15 +21,55 @@ const dataDir = () => {
 const settingsPath = () => join(app.getPath("userData"), "settings.json");
 const keysPath = () => join(app.getPath("userData"), "keys.bin");
 
-function readSettings(): Record<string, unknown> {
+/* 설정은 조용히 사라질 수 있는 자리다 — 실제로 그랬다(2026-08-15).
+   예전 readSettings 는 **어떤 오류든** `{}` 를 돌려줬고 settings:set 은 그 위에
+   패치를 병합했다. 그래서 파일이 한 번만 못 읽히면 그 다음 저장이 나머지를
+   통째로 날렸다. 로그도 없고 사용자는 글꼴·테마가 저절로 바뀐 것으로 본다.
+
+   두 겹으로 막는다. ① 쓰기를 원자적으로 — 임시 파일에 쓰고 rename 이라
+   도중에 죽어도 본체가 잘리지 않는다(강제 종료가 원인이었다).
+   ② 못 읽으면 덮어쓰지 말고 **옆으로 치운다** — 잃더라도 되돌릴 길은 남긴다. */
+type Settings = Record<string, unknown>;
+
+/** 값과 함께 «이 값을 믿어도 되는가»를 돌려준다. 파일이 아직 없는 것과
+ *  깨진 것은 다르다 — 앞은 빈 설정이 정답이고, 뒤는 덮어쓰면 안 된다. */
+function readSettingsSafe(): { data: Settings; trusted: boolean } {
+  const p = settingsPath();
+  if (!existsSync(p)) return { data: {}, trusted: true };
   try {
-    return JSON.parse(readFileSync(settingsPath(), "utf8"));
+    const parsed = JSON.parse(readFileSync(p, "utf8"));
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return { data: parsed as Settings, trusted: true };
+    }
+    return { data: {}, trusted: false };   // JSON 이지만 객체가 아니다
   } catch {
-    return {};
+    return { data: {}, trusted: false };
   }
 }
-function writeSettings(s: Record<string, unknown>) {
-  writeFileSync(settingsPath(), JSON.stringify(s, null, 2));
+
+function readSettings(): Settings {
+  return readSettingsSafe().data;
+}
+
+function writeSettings(s: Settings) {
+  const p = settingsPath();
+  const tmp = `${p}.${process.pid}.tmp`;
+  writeFileSync(tmp, JSON.stringify(s, null, 2));
+  renameSync(tmp, p);            // 같은 볼륨이라 원자적이다
+}
+
+/** 깨진 설정 파일을 시간 도장을 찍어 옆으로 옮긴다. */
+function quarantineSettings(): void {
+  const p = settingsPath();
+  if (!existsSync(p)) return;
+  const dest = `${p}.bad-${Date.now()}`;
+  try {
+    renameSync(p, dest);
+    console.warn(`settings.json 을 읽을 수 없어 ${basename(dest)} 로 옮겼습니다. ` +
+                 "설정은 기본값으로 시작합니다 — 되살리려면 그 파일을 여세요.");
+  } catch (e) {
+    console.warn("settings.json 격리 실패:", e);
+  }
 }
 
 /* API 키는 safeStorage 로만 저장하고 renderer 로는 존재 여부만 나간다 */
@@ -246,7 +286,11 @@ function wireIpc() {
 
   ipcMain.handle("settings:get", () => readSettings());
   ipcMain.handle("settings:set", (_e, patch: Record<string, unknown>) => {
-    writeSettings({ ...readSettings(), ...patch });
+    const { data, trusted } = readSettingsSafe();
+    /* 못 읽은 것을 빈 설정으로 치고 그 위에 쓰면 나머지가 증발한다. 깨진
+       파일은 옆으로 치우고 새로 시작하되, 원본은 남겨 되살릴 수 있게 한다. */
+    if (!trusted) quarantineSettings();
+    writeSettings({ ...data, ...patch });
   });
 
   ipcMain.handle("keys:status", () => keyStatus());

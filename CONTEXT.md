@@ -26,6 +26,16 @@
 
 > **낭독(TTS)은 2026-08-06 에 통째로 걷어냈다**(사용자 지시). 지운 것: `src/main/tts/`·`vendor/supertonic-nodejs/`·`scripts/fetch-tts-assets.mjs`·`spec-tts.md`, main 의 `tts:*` IPC 전부, preload 의 `tts` 표면과 `tts:state`/`tts:progress` 채널, 렌더러의 낭독 툴바(`sayBar`)·하이라이트·mp3 내보내기, `types.ts` 의 `isSpeakable`, 의존성 `onnxruntime-node`·`@breezystack/lamejs` 와 `asarUnpack`, `.gitignore` 의 `tts-assets/`·`tts.zip` 항목. `.npmrc` 와 `scripts/rebuild-native.mjs` 는 better-sqlite3 용이라 남는다. 사전 열기(더블클릭)와 짝 강조는 낭독과 무관하게 그대로다. 아래 낭독 관련 기록은 전사(前史)로만 남긴 것이다 — johnb PC 의 `tts-assets/` 정션과 `tts.zip` 도 이제 쓸 데가 없다.
 
+2026-08-15 밤 마지막 — **설정이 조용히 증발하던 구멍을 막았다**(사용자가 「글꼴 설정이 바뀐 듯」이라고 해서 찾았다). 실제로 `settings.json` 이 이 세션 중에 **260바이트 → 143바이트**로 줄었고 `theme` 이 사라져 있었다.
+
+원인은 두 줄이었다. `readSettings()` 가 **어떤 오류든 `{}`** 를 돌려주고, `settings:set` 이 그 위에 패치를 병합한다 — 파일이 한 번만 못 읽히면 그 다음 저장이 나머지를 통째로 날린다. 로그도 없다. **불러온 것은 이 세션에서 앱을 `taskkill /F` 로 여러 번 강제 종료한 것으로 보인다**(`writeFileSync` 도중에 끊기면 본체가 잘린다). 검증하느라 앱을 죽일 때는 `/F` 를 붙이지 말 것.
+
+두 겹으로 막았다. ① **쓰기를 원자적으로** — 임시 파일에 쓰고 `renameSync`(같은 볼륨이라 원자적). 도중에 죽어도 본체가 잘리지 않는다. ② **못 읽으면 덮어쓰지 말고 격리** — `readSettingsSafe()` 가 값과 함께 `trusted` 를 돌려주고, 파일이 **아직 없는 것**(빈 설정이 정답)과 **깨진 것**(덮어쓰면 안 됨)을 가른다. 깨졌으면 `settings.json.bad-<epoch>` 로 옮기고 경고를 남긴다 — 잃더라도 되돌릴 길은 남는다.
+
+실측(진짜 설정을 건드리지 않게 `--user-data-dir` 로 따로 돌렸다): ① 멀쩡한 설정에 `set` 한 번 → 기존 여섯 키가 **전부 살아남고** 새 키만 붙는다, 부팅 테마 `night`·한글 글꼴 `"Nanum Myeongjo"` 적용 확인. ② 쓰다 만 JSON → `settings.json.bad-1786798090465` 로 격리되고 **원문이 그대로 보존**된다(예전에는 흔적 없이 증발). ③ `.tmp` 잔재 없음.
+
+`theme` 은 `night` 로 되돌렸다(2026-08-06 기록의 「초기 테마 복원(night)」이 근거다). 되돌리기 전 파일은 `settings.json.before-theme-restore` 로 남겼다. 글꼴·조판 값(`faceKo 나눔명조 · sizePt 16 · leadStep 2 · paraStep 2 · width 90`)은 **초기화되지 않았다** — 전부 기본값과 다른 사용자 값 그대로였다.
+
 2026-08-15 밤 이어서 — **짝 강조에 페이드를 넣었다**(사용자 지시, 타이밍만·색은 그대로). `--hl-in: .13s` / `--hl-out: .32s` 를 `--dur` 과 **따로** 뒀다 — `--dur` 은 목차 슬라이드·조판 패널·손잡이·목차 강조가 함께 쓰는 값이라 여기를 늘리려고 건드리면 목차 여닫힘까지 느려진다. 쉬는 상태(`.cell`)의 전이가 곧 **사라지는 쪽**이고, `:hover`/`.mate` 쪽에서 `transition-duration` 만 덮어써 켜질 때를 빠르게 한다. 단축 `background` 를 `background-color` 로 좁혔다. 나가는 쪽을 길게 잡으면 커서를 훑을 때 사라지는 중인 단락이 겹쳐 혜성 꼬리가 되므로 `ease-out` 으로 초반에 알파를 떨군다.
 
 `mouseleave` 도 함께 넣었다(`app.js`). 없으면 커서가 툴바·목차로 간 뒤에도 마지막 단락의 `.mate` 가 남는데, `:hover` 는 저절로 풀리므로 **커서 쪽 칸만 꺼지고 반대쪽 칸만 켜진 채**로 남아 짝이 아닌 것이 짝처럼 보였다. 사라지는 페이드가 가장 잘 보여야 할 순간이 바로 이 자리다.

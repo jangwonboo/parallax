@@ -19,6 +19,9 @@ export const DROPPED = 1 << 5;
 
 export type BlockType =
   | "h1" | "h2" | "h3" | "p" | "quote" | "figcaption" | "footnote" | "table_raw"
+  /* 별행 수식. src 는 `$$…$$` 로 감싼 LaTeX 다 — 언어가 없으므로 번역 대상이
+     아니고, 리더는 좌우 두 칸에 같은 것을 그린다(그림과 같은 취급). */
+  | "equation"
   /* 그림. src 는 본문이 아니라 asset 테이블의 id 다 — 번역 대상이 아니다. */
   | "figure";
 

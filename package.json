@@ -18,7 +18,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
-    "better-sqlite3": "^11.5.0"
+    "better-sqlite3": "^11.5.0",
+    "katex": "^0.18.4"
   },
   "devDependencies": {
     "@electron/rebuild": "^3.7.0",

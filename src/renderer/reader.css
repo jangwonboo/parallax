@@ -303,6 +303,38 @@ body.sel-src .cell.ko, body.sel-ko .cell.src { user-select: none; }
   --blockgap: calc(var(--leading) * var(--para-k) * 1em);
 }
 
+/* ── 수식 ────────────────────────────────────────────
+   KaTeX 가 그린다(동봉본). 크기를 따로 주지 않는다 — `.katex` 는 em 기반이라
+   본문 글자 크기를 그대로 따라간다. 조판 슬라이더가 수식에도 그대로 듣는다.
+
+   색만 물려받게 한다. KaTeX 기본 CSS 는 색을 정하지 않지만, 어두운 테마에서
+   상속이 끊기면 검은 식이 검은 바탕에 놓인다. */
+.katex { color: inherit; }
+
+/* 인라인 수식이 줄 높이를 밀어 올리지 않게 한다 — 분수·첨자가 든 식 하나가
+   그 줄만 벌려 놓으면 좌우 대역의 행이 어긋난다. */
+.cell .math { display: inline-block; vertical-align: baseline; }
+.cell .math .katex { line-height: 1.2; }
+
+/* 별행 수식 — 그림처럼 양쪽 칸에 같은 것이 하나씩 들어간다. 수식에는 언어가
+   없어서 한쪽을 비우면 그 대역만 읽는 눈이 식을 놓친다. */
+.row-equation .cell {
+  --blockgap: max(calc(var(--leading) * var(--para-k) * 1em), .7em);
+  --blockgap-b: .3em;
+  text-align: center; text-indent: 0;
+}
+.row-equation .math-display { display: block; }
+/* 긴 식은 칸을 넘긴다 — 줄바꿈이 안 되므로 그 식만 가로로 굴린다.
+   본문 전체가 가로로 밀리는 것보다 낫다. */
+.row-equation .cell > div {
+  overflow-x: auto; overflow-y: hidden;
+  padding-bottom: .2em;              /* 스크롤바가 식을 덮지 않게 */
+}
+.row-equation .katex-display { margin: 0; }
+
+/* 깨진 LaTeX 는 KaTeX 가 붉게 남긴다. 기본색이 테마와 안 맞아 맞춰 준다. */
+.katex .katex-error { color: var(--warn) !important; }
+
 /* 그림 — 원문·번역 양쪽 칸에 같은 그림이 하나씩 들어간다(다른 행과 같은 2열
    그리드). 여백은 본문 한 단락과 같은 규칙이되 최소 반 줄은 준다(단락간격
    「없음」에서 그림이 글에 붙지 않게). */

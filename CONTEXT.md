@@ -6,13 +6,18 @@
 
 ---
 
-## 이 프로젝트는 세 조각이다
+## 이 프로젝트는 네 조각이다
 
 | | 무엇 | 어디 |
 |---|---|---|
 | **Parallax 앱** | 좌우 대역 리더. Electron + better-sqlite3. 읽기와 스크롤 구동 번역. | `src/` |
 | **pdf-ko-translate 스킬** | PDF → 구조 복원 → 배치 번역 → `.parallax` 내보내기. Python. | `pdf-ko-translate.zip` |
 | **ko-style 스킬** | 한국어 톤앤매너 명세(문체 6종 · 축 6개) + 개조식 종결 검사. 파이프라인과 무관하게 단독으로 쓴다. | `ko-style/` · `ko-style.zip` |
+| **vlmparse** | PDF → VLM OCR → 구조 있는 블록. 판독 계층만 떼어 낸 **별도 저장소**(2026-08-16). | [jangwonboo/vlmparse](https://github.com/jangwonboo/vlmparse) (비공개) |
+
+**`vlmparse` 는 `pagecheck.py` 에 엉켜 있던 Datalab 판독 경로를 떼어 낸 것이다.** 경계는 「PDF → (블록, 그림)」이고, 그 아래(일치율 계산·기존 book.json 병합·이음매 수리)는 parallax 고유라 남겼다. 떼어 보니 `extract.py` 의존이 0이었다 — 그 아홉 함수는 전부 병합 쪽이 쓰고 있었다. 자체 CLI(`vlmparse read book.pdf --out book.json`)와 시험 22개가 있고, 실측으로 얻은 것들(429 는 대기다·전송 오류도 물러난다·과금 단위는 센트다·asset id 는 내용 sha1 이다)이 주석과 시험으로 옮겨져 있다.
+
+**아직 parallax 에 물리지 않았다.** 스킬이 zip 으로 배포돼 설치 단계가 없으므로 `pip` 의존으로 두면 배포가 깨진다 — **git subtree** 로 사본을 안에 두는 방식을 쓸 계획이다(저장소는 독립, zip 은 자족).
 
 둘은 `.parallax`(SQLite) 파일로만 오간다. 스키마는 `spec.md` §2.2와 스킬의 `scripts/_parallax.py`에 **이중으로** 적혀 있다 — 한쪽을 고치면 다른 쪽도 고쳐야 한다.
 
@@ -25,6 +30,23 @@
 `spec.md` §10 기준 E1~E5(스케줄러·pagecheck 통합) 구현. `tsc --noEmit` 통과.
 
 > **낭독(TTS)은 2026-08-06 에 통째로 걷어냈다**(사용자 지시). 지운 것: `src/main/tts/`·`vendor/supertonic-nodejs/`·`scripts/fetch-tts-assets.mjs`·`spec-tts.md`, main 의 `tts:*` IPC 전부, preload 의 `tts` 표면과 `tts:state`/`tts:progress` 채널, 렌더러의 낭독 툴바(`sayBar`)·하이라이트·mp3 내보내기, `types.ts` 의 `isSpeakable`, 의존성 `onnxruntime-node`·`@breezystack/lamejs` 와 `asarUnpack`, `.gitignore` 의 `tts-assets/`·`tts.zip` 항목. `.npmrc` 와 `scripts/rebuild-native.mjs` 는 better-sqlite3 용이라 남는다. 사전 열기(더블클릭)와 짝 강조는 낭독과 무관하게 그대로다. 아래 낭독 관련 기록은 전사(前史)로만 남긴 것이다 — johnb PC 의 `tts-assets/` 정션과 `tts.zip` 도 이제 쓸 데가 없다.
+
+2026-08-16 — **수식이 산문으로 뭉개지던 것을 찾아 리더가 그리게 했다**(사용자 질문에서 시작).
+
+**Datalab 이 주는 형식은 이렇다**: markdown 은 `$$…$$`, **html/chunks 는 `<math>` 태그 안의 LaTeX**(MathML 이 아니다). `block_type` 에 수식 전용이 **둘** 있다 — `Equation`(별행)과 `TextInlineMath`(인라인이 든 단락). 인라인은 `balanced` 이상에서만 LaTeX 로 변환된다(`fast` 는 텍스트 레이어를 긁어 놓친다). 우리는 기본이 `accurate` 라 충족한다.
+
+**그런데 파이프라인이 그것을 지우고 있었다.** `DATALAB_TYPE` 에 두 유형이 없어 둘 다 `p` 로 접히고, `html_clean()` 이 `<math>` 를 걷어내 **안쪽 LaTeX 만 맨몸으로** 남겼다. 실측: `beyond_weird` 본문에 `\Delta e \times \Delta d`·`h/2\pi`·`\mathbf{M}` 이 산문처럼 박혀 있고(7블록), 번역기가 글로 보고 제각각 처리했다 — 같은 책에 `∆e × ∆d`(유니코드로 바꿈)와 `3 \times 2`(그대로)가 섞여 있다. 표를 `table_raw` 로 살린 것과 같은 원리인데 수식만 그 예외에서 빠져 있었다. **이미 만든 책은 복구가 안 된다** — 태그가 판독 단계에서 지워졌으므로 해당 쪽을 재판독해야 한다(쪽당 1¢).
+
+**리더는 KaTeX 를 동봉해 그린다**(사용자 지시). CDN 은 CSP `script-src 'self'` 가 막고, 리더는 비행기에서도 열려야 한다. 저장소에 바이너리를 커밋하지 않고 **빌드가 `node_modules` 에서 복사한다**(`copy-assets.mjs`) — 폰트는 **woff2 만**, 600KB. woff·ttf 까지 넣으면 1.2MB 인데 Chromium 은 woff2 를 찾은 뒤 나머지를 요청하지 않는다.
+
+- **`$` 가 보인다고 다 수식이 아니다.** 본문에 `$5 million to $10` 같은 돈 표기가 흔하다(signals 에 10곳). 안쪽에 LaTeX 신호(`\ ^ _ { }`)나 수학 기호가 있을 때만 수식으로 본다 — **애매하면 글자 그대로** 두는 쪽이 안전하다. 수식이 글로 보이는 것은 읽을 수 있지만 문장이 수식으로 깨지면 못 읽는다.
+- **크기를 따로 주지 않는다.** `.katex` 는 em 기반이라 본문 크기를 그대로 따라간다 — 조판 슬라이더가 수식에도 그대로 듣는다. 색만 `inherit` 로 물려준다(어두운 테마에서 상속이 끊기면 검은 식이 검은 바탕에 놓인다).
+- `equation` 블록은 **그림과 같은 취급** — 좌우 두 칸에 같은 식을 하나씩. 긴 식은 그 칸만 가로로 굴린다(본문 전체가 밀리는 것보다 낫다).
+- `schema_version` 은 **올리지 않았다** — 테이블 구조가 그대로고 `type` 은 원래 자유 문자열이라 옛 리더가 열어도 `$$…$$` 가 글자로 보일 뿐이다.
+
+실측(시험용 `.parallax` 를 만들어 CDP 로): 별행 셋(`E=mc^2`·슈뢰딩거·가우스 적분)이 **양쪽 칸에 각각** 렌더(katex 노드 2개씩), 인라인 넷이 든 단락은 8개(4×2칸), **돈 표기 블록은 katex 노드 0개**(글자 그대로 남음), **깨진 LaTeX 는 붉게 표시되고 뒤 문장이 이어진다**(렌더가 멈추지 않는다). 두 테마 모두 색 상속 확인, 폰트는 20개 등록 중 실제 쓰인 4개만 로드. 내보내기도 두 언어 모두 `$$…$$`·`$…$` 를 그대로 통과시킨다.
+
+> **`vlmparse`**(별도 저장소, 아래 항목)에 이 규칙이 이미 들어가 있다. parallax 파이프라인 쪽(`chunk_items`·`html_clean`)은 아직 옛 상태다 — subtree 로 물릴 때 함께 바뀐다.
 
 2026-08-15 밤 마지막 — **설정이 조용히 증발하던 구멍을 막았다**(사용자가 「글꼴 설정이 바뀐 듯」이라고 해서 찾았다). 실제로 `settings.json` 이 이 세션 중에 **260바이트 → 143바이트**로 줄었고 `theme` 이 사라져 있었다.
 

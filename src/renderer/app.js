@@ -78,7 +78,8 @@ let mounted = new Map();             // id -> row element
    조판이 바뀌면 recomputeEstimates() 가 비례해 고쳐 쓴다. */
 /* p·h2·h3 은 191쪽 문서에서 각각 487·40·20 개를 실측해 BASE 조판으로 역산한 값이다.
    표본이 한둘뿐이던 quote·footnote·figcaption·table_raw 는 손대지 않았다. */
-const BASE_EST = { h1: 90, h2: 65, h3: 42, p: 174, quote: 120, footnote: 60, figcaption: 50, table_raw: 80 };
+const BASE_EST = { h1: 90, h2: 65, h3: 42, p: 174, quote: 120, footnote: 60,
+                   figcaption: 50, table_raw: 80, equation: 70 };
 const BASE = { size: 16, leading: 1.78, colw: 660 };
 const HEAD = new Set(["h1", "h2", "h3"]);
 let estimates = { ...BASE_EST };
@@ -160,6 +161,51 @@ function findIndexAt(y) {
   return best;
 }
 
+/* ── 수식 ────────────────────────────────────────────
+   판독기가 `<math>` 로 감싸 준 LaTeX 를 파이프라인이 `$…$`(인라인)·`$$…$$`
+   (별행)로 남긴다. 여기서는 그것을 KaTeX 로 그린다.
+
+   **`$` 가 보인다고 다 수식은 아니다.** 본문에 `$5 million to $10` 같은 돈
+   표기가 흔하고(실측: signals 에 10곳), 그것을 수식으로 넘기면 문장이 깨진다.
+   그래서 안쪽에 LaTeX 다운 신호(역슬래시·위첨자·아래첨자·중괄호)나 수학 기호가
+   있을 때만 수식으로 본다. 애매하면 글자 그대로 두는 쪽이 안전하다 — 수식이
+   글로 보이는 것은 읽을 수 있지만, 문장이 수식으로 깨지면 못 읽는다. */
+const MATH_SPLIT = /(\$\$[^$]+?\$\$|\$[^$\n]+?\$)/g;
+const MATH_SIGNAL = /[\\^_{}]|[α-ωΑ-Ω∑∫√≈≠≤≥±×÷∞∂]/;
+
+/** 문자열을 el 에 넣는다. 수식이 섞여 있으면 그 조각만 KaTeX 로 그린다. */
+function setTextWithMath(el, text) {
+  if (!text || !text.includes("$")) { el.textContent = text || ""; return; }
+
+  const parts = String(text).split(MATH_SPLIT);
+  if (parts.length === 1) { el.textContent = text; return; }
+
+  el.textContent = "";
+  for (const part of parts) {
+    if (!part) continue;
+    const display = part.startsWith("$$") && part.endsWith("$$") && part.length > 4;
+    const inline = !display && part.startsWith("$") && part.endsWith("$") && part.length > 2;
+    const tex = display ? part.slice(2, -2) : inline ? part.slice(1, -1) : null;
+
+    if (tex === null || !MATH_SIGNAL.test(tex)) {
+      el.appendChild(document.createTextNode(part));   // 돈 표기 등 — 글자 그대로
+      continue;
+    }
+    const span = document.createElement("span");
+    span.className = display ? "math math-display" : "math";
+    try {
+      /* trust 는 기본값(false) 그대로 둔다 — \href·\includegraphics 를 막는다.
+         throwOnError:false 라 깨진 LaTeX 도 렌더를 멈추지 않고 붉게 보여 준다. */
+      span.innerHTML = window.katex.renderToString(tex, {
+        displayMode: display, throwOnError: false, output: "html",
+      });
+    } catch {
+      span.textContent = part;      // KaTeX 가 아직 안 왔거나 손을 못 대는 것
+    }
+    el.appendChild(span);
+  }
+}
+
 /* ── 행 렌더 ─────────────────────────────────────────── */
 const TAG = { h1: "h1", h2: "h2", h3: "h3", quote: "blockquote" };
 
@@ -197,19 +243,34 @@ function makeRow(b) {
     return row;
   }
 
+  /* 별행 수식 — 그림과 같은 취급이다. 수식에는 언어가 없으므로 번역 칸을
+     비워 두면 한쪽 대역만 읽는 눈이 식을 놓치고, 「번역 대기」 자리표시가
+     영원히 남는다. 양쪽에 같은 것을 그린다. */
+  if (b.type === "equation") {
+    for (const side of ["src", "ko"]) {
+      const cell = document.createElement("div");
+      cell.className = `cell ${side} eq`;
+      const p = document.createElement("div");
+      setTextWithMath(p, b.src);
+      cell.appendChild(p);
+      row.appendChild(cell);
+    }
+    return row;
+  }
+
   const tag = TAG[b.type] || "p";
   const cls = b.type === "footnote" || b.type === "figcaption" ? ` class="${b.type}"` : "";
 
   const src = document.createElement("div");
   src.className = "cell src" + (b.flags & FROM_OCR ? " read" : "");
   src.innerHTML = `<${tag}${cls}></${tag}>`;
-  src.firstChild.textContent = b.src;
+  setTextWithMath(src.firstChild, b.src);
 
   const ko = document.createElement("div");
   ko.className = "cell ko" + (b.flags & NEEDS_REVIEW ? " review" : "");
   if (b.ko) {
     ko.innerHTML = `<${tag}${cls}></${tag}>`;
-    ko.firstChild.textContent = b.ko;
+    setTextWithMath(ko.firstChild, b.ko);
   } else {
     ko.innerHTML = `<${tag}${cls}><span class="pending"></span><span class="pending"></span></${tag}>`;
   }
@@ -1061,10 +1122,10 @@ api.on("block:updated", async ({ ids }) => {
     const el = mounted.get(b.id);
     if (!el) continue;
     const ko = el.querySelector(".cell.ko");
-    if (!ko) continue; // 그림 행에는 번역 칸이 없다
+    if (!ko || b.type === "figure" || b.type === "equation") continue;  // 번역 칸이 없다
     const tag = TAG[b.type] || "p";
     ko.innerHTML = `<${tag}></${tag}>`;
-    ko.firstChild.textContent = b.ko || "";
+    setTextWithMath(ko.firstChild, b.ko || "");
   }
   measure();
   rebuildTops();

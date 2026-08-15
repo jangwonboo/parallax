@@ -9,6 +9,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://use.typekit.net" crossorigin>
+<!-- 수식. 동봉본이다 — CSP 가 script-src 'self' 라 CDN 에서 못 받고, 리더는
+     비행기에서도 열려야 한다. 빌드가 node_modules 에서 복사한다. -->
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<script defer src="vendor/katex/katex.min.js"></script>
 <link rel="stylesheet" href="reader.css">
 </head>
 <body>

@@ -131,7 +131,7 @@ CREATE TABLE block (
   id         TEXT PRIMARY KEY,   -- b0042, b0042a — 영구 불변
   ord        INTEGER NOT NULL,   -- 읽기 순서. 1024 간격 희소 배치
   page       INTEGER,            -- 원본 쪽번호. md/txt는 NULL
-  type       TEXT NOT NULL,      -- h1 h2 h3 p quote figcaption footnote table_raw figure
+  type       TEXT NOT NULL,      -- h1 h2 h3 p quote figcaption footnote table_raw equation figure
   src        TEXT NOT NULL,      -- 영어 원문. 비어 있을 수 없다
   ko         TEXT,               -- 한국어 번역. 미번역이면 NULL
   ko_raw     TEXT,               -- deslop 이전 번역. 없으면 NULL
@@ -148,6 +148,12 @@ CREATE INDEX block_page  ON block(page);
 `src`와 `ko`가 **같은 행**에 있다는 것이 이 포맷의 핵심이다. 병렬 대역 화면의 한 줄이 곧 한 행이고, 블록 ID가 둘을 묶는 유일한 키다.
 
 `type='figure'`만 예외다 — `src`는 본문이 아니라 `asset.id`이고, `ko`는 늘 NULL, `flags`에 `NO_TRANSLATE`가 선다. 리더는 한 행을 좌우로 가르지 않고 그림 하나로 그린다.
+
+**`type='equation'`**(2026-08-15 추가)은 별행 수식이다. `src`는 `$$…$$`로 감싼 LaTeX, `ko`는 늘 NULL, `flags`에 `NO_TRANSLATE`가 선다 — 수식에는 언어가 없다. 리더는 그림과 같이 **좌우 두 칸에 같은 식을 하나씩** 그린다(한쪽을 비우면 그 대역만 읽는 눈이 식을 놓치고 「번역 대기」 자리표시가 영원히 남는다).
+
+본문 단락 안의 **인라인 수식은 `$…$`** 로 `src`·`ko` 안에 그대로 들어간다. 별도 유형을 두지 않는다 — 단락은 단락이고, 그 안에 수식이 섞여 있을 뿐이다.
+
+`schema_version`은 올리지 않았다. **테이블 구조가 그대로**이고 `type`은 원래 자유 문자열이라, 옛 리더가 열어도 깨지지 않고 `$$…$$`가 글자로 보일 뿐이다. 구조가 바뀌지 않은 변화에 버전을 올리면 버전이 「무엇이 달라졌는가」를 말해 주지 못하게 된다.
 
 **`state`**
 

@@ -4,7 +4,7 @@
 
 스크롤하는 만큼만 번역하므로 책 한 권을 통째로 태우지 않아도 읽기 시작할 수 있다. 배치 번역과 스크롤 구동 번역이 같은 작업 큐를 쓰므로 도중에 모드를 바꿔도 이미 한 일이 버려지지 않는다.
 
-설계 근거와 데이터 구조는 `spec.md`, 번역 파이프라인 자체는 `pdf-ko-translate` 스킬을 참조.
+설계 근거와 데이터 구조는 `spec.md`, 번역 파이프라인 자체는 `pdf2parallax` 스킬을 참조.
 
 ---
 
@@ -36,16 +36,16 @@ export ANTHROPIC_API_KEY=sk-ant-...   # 실행 전에 설정
 | 확장자 | 경로 | 비고 |
 |---|---|---|
 | `.parallax` | 그대로 연다 | 원문·번역·용어집이 모두 들어 있는 작업 파일 |
-| `.md` | 마크다운 파서 | OCR 산출물, `pdf-ko-translate` 가 낸 `book.md` |
+| `.md` | 마크다운 파서 | OCR 산출물, `pdf2parallax` 가 낸 `book.md` |
 | `.txt` | 빈 줄 단락 분할 | 구조 추론은 하지 않는다 |
-| `.pdf` | 파이썬 sidecar | `pdf-ko-translate` 스킬이 설치돼 있어야 한다 |
+| `.pdf` | 파이썬 sidecar | `pdf2parallax` 스킬이 설치돼 있어야 한다 |
 
-PDF 는 `pdf-ko-translate` 의 `extract.py` 를 그대로 쓴다. Node 의 PDF 라이브러리는 폰트 메트릭·좌표 추출이 약해 구조 복원 품질이 떨어진다.
+PDF 는 `pdf2parallax` 의 `extract.py` 를 그대로 쓴다. Node 의 PDF 라이브러리는 폰트 메트릭·좌표 추출이 약해 구조 복원 품질이 떨어진다.
 
 ```bash
 # 스킬 설치
-unzip pdf-ko-translate.zip -d ~/.claude/skills/
-pip install -r ~/.claude/skills/pdf-ko-translate/requirements.txt
+unzip pdf2parallax.zip -d ~/.claude/skills/
+pip install -r ~/.claude/skills/pdf2parallax/requirements.txt
 ```
 
 다른 위치에 뒀다면 `PARALLAX_SKILL_DIR` 로 알려준다. 스킬이 없으면 PDF 만 열리지 않고 나머지는 정상 동작한다.
@@ -86,7 +86,7 @@ src/
   preload/index.ts         contextBridge 표면 (이게 renderer 능력의 전부)
   renderer/
     index.html             CSP: connect-src 'none' — renderer 는 네트워크에 못 나간다
-    reader.css             pdf-ko-translate 의 리더 조판을 공유
+    reader.css             pdf2parallax 의 리더 조판을 공유
     app.js                 가상 스크롤 · 분할 · 서체 · 사전 · 짝 강조
 ```
 

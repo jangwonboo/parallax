@@ -225,7 +225,7 @@ async function openPath(path: string) {
   if (ext !== "parallax") {
     throw new Error(
       ".parallax 문서만 열 수 있습니다.\n\n" +
-        "PDF·md·txt 는 pdf-ko-translate 스킬로 변환한 뒤 여세요."
+        "PDF·md·txt 는 pdf2parallax 스킬로 변환한 뒤 여세요."
     );
   }
   attach(Doc.open(path));

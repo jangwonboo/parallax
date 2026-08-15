@@ -19,9 +19,9 @@ import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 
 const SRC = "vendor/vlmparse/src/vlmparse";
-const DST = "pdf-ko-translate/scripts/vlmparse";
-const SKILL = "pdf-ko-translate";
-const ZIP = "pdf-ko-translate.zip";
+const DST = "pdf2parallax/scripts/vlmparse";
+const SKILL = "pdf2parallax";
+const ZIP = "pdf2parallax.zip";
 
 if (!existsSync(SRC)) {
   console.error(`${SRC} 가 없습니다 — subtree 가 붙어 있는지 보세요.`);
@@ -49,7 +49,7 @@ console.log(`vlmparse → ${DST} (${files.length} 파일)`);
 
 if (process.argv.includes("--zip")) {
   /* PowerShell 의 Compress-Archive 는 폴더 이름을 유지한다 — zip 안이
-     `pdf-ko-translate/...` 여야 스킬 로더가 찾는다. */
+     `pdf2parallax/...` 여야 스킬 로더가 찾는다. */
   await rm(ZIP, { force: true });
   execFileSync("powershell", ["-NoProfile", "-Command",
     `Compress-Archive -Path '${SKILL}' -DestinationPath '${ZIP}' -Force`],

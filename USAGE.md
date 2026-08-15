@@ -70,13 +70,13 @@ await evaluate(`window.parallax.translate.pause(true)`);
 
 ---
 
-## CLI 파이프라인 (pdf-ko-translate)
+## CLI 파이프라인 (pdf2parallax)
 
 ### 설치
 
 ```bash
-unzip pdf-ko-translate.zip -d ~/.claude/skills/
-pip install -r ~/.claude/skills/pdf-ko-translate/requirements.txt
+unzip pdf2parallax.zip -d ~/.claude/skills/
+pip install -r ~/.claude/skills/pdf2parallax/requirements.txt
 ```
 
 `requirements.txt`의 `truststore`를 빼지 말 것 — 네트워크에 따라 파이썬만 전 API 호출이 `CERTIFICATE_VERIFY_FAILED`로 죽는다(`CONTEXT.md` 참조).

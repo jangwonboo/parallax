@@ -92,7 +92,7 @@ export function importText(path: string): { title: string; blocks: RawBlock[] } 
 }
 
 /**
- * PDF → 파이썬 sidecar. `pdf-ko-translate` 스킬의 스크립트를 그대로 쓴다.
+ * PDF → 파이썬 sidecar. `pdf2parallax` 스킬의 스크립트를 그대로 쓴다.
  * 스킬 경로를 설정에서 받거나 표준 위치에서 찾는다.
  *
  * 스크립트 하나가 아니라 스킬 폴더를 돌려준다 — 추출(extract.py) 다음에
@@ -105,9 +105,9 @@ export function findSkillDir(configured?: string | null): string | null {
   const cands = [
     configured,
     process.env.PARALLAX_SKILL_DIR,
-    join(home, ".claude", "skills", "pdf-ko-translate"),
-    join(process.cwd(), "pdf-ko-translate"),
-    join(process.cwd(), "..", "pdf-ko-translate"),
+    join(home, ".claude", "skills", "pdf2parallax"),
+    join(process.cwd(), "pdf2parallax"),
+    join(process.cwd(), "..", "pdf2parallax"),
   ].filter(Boolean) as string[];
   for (const c of cands) {
     if (existsSync(join(c, "scripts", "extract.py"))) return c;

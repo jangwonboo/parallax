@@ -11,7 +11,7 @@
 | | 무엇 | 어디 |
 |---|---|---|
 | **Parallax 앱** | 좌우 대역 리더. Electron + better-sqlite3. 읽기와 스크롤 구동 번역. | `src/` |
-| **pdf-ko-translate 스킬** | PDF → 구조 복원 → 배치 번역 → `.parallax` 내보내기. Python. | `pdf-ko-translate.zip` |
+| **pdf2parallax 스킬** | PDF → 구조 복원 → 배치 번역 → `.parallax` 내보내기. Python. | `pdf2parallax.zip` |
 | **ko-style 스킬** | 한국어 톤앤매너 명세(문체 6종 · 축 6개) + 개조식 종결 검사. 파이프라인과 무관하게 단독으로 쓴다. | `ko-style/` · `ko-style.zip` |
 | **vlmparse** | PDF → VLM OCR → 구조 있는 블록. 판독 계층만 떼어 낸 **별도 저장소**(2026-08-16). | [jangwonboo/vlmparse](https://github.com/jangwonboo/vlmparse) (비공개) |
 
@@ -30,6 +30,18 @@
 `spec.md` §10 기준 E1~E5(스케줄러·pagecheck 통합) 구현. `tsc --noEmit` 통과.
 
 > **낭독(TTS)은 2026-08-06 에 통째로 걷어냈다**(사용자 지시). 지운 것: `src/main/tts/`·`vendor/supertonic-nodejs/`·`scripts/fetch-tts-assets.mjs`·`spec-tts.md`, main 의 `tts:*` IPC 전부, preload 의 `tts` 표면과 `tts:state`/`tts:progress` 채널, 렌더러의 낭독 툴바(`sayBar`)·하이라이트·mp3 내보내기, `types.ts` 의 `isSpeakable`, 의존성 `onnxruntime-node`·`@breezystack/lamejs` 와 `asarUnpack`, `.gitignore` 의 `tts-assets/`·`tts.zip` 항목. `.npmrc` 와 `scripts/rebuild-native.mjs` 는 better-sqlite3 용이라 남는다. 사전 열기(더블클릭)와 짝 강조는 낭독과 무관하게 그대로다. 아래 낭독 관련 기록은 전사(前史)로만 남긴 것이다 — johnb PC 의 `tts-assets/` 정션과 `tts.zip` 도 이제 쓸 데가 없다.
+
+2026-08-16 이어서 — **스킬 이름을 `pdf-ko-translate` → `pdf2parallax` 로 바꿨다**(사용자 지시). 판독을 `vlmparse` 로 떼어 내고 나니 옛 이름이 하는 일을 못 말했다. 이제 셋의 이름만으로 경계가 읽힌다:
+
+```
+vlmparse       쪽 이미지 → 블록      (VLM 판독, 선택)
+pdf2parallax   PDF → .parallax       (추출·번역·조립)
+ko-style       한국어 문체           (독립)
+```
+
+> 후보 중 `pdf_extract`·`blk_to_parallax` 는 **틀린 이름이다.** 추출은 `vlmparse` 로 간 것이 아니다 — `extract.py`(923줄, PDF 텍스트 레이어)는 **여전히 이 스킬 안**에 있고, `vlmparse` 가 가져간 것은 `pagecheck.py` 안의 Datalab 재판독 경로 **하나**다. 두 판독기는 읽는 대상이 다르다(텍스트 레이어 vs 쪽 이미지). 그래서 입력은 여전히 PDF 이고 `blk_…` 는 성립하지 않는다.
+
+바꾼 곳 41군데 — `.gitignore`·`README.md`·`USAGE.md`·`spec.md`·`ko-style/SKILL.md`·`scripts/sync-vlmparse.mjs`·`src/main/importers/index.ts`(**`findSidecar()` 탐색 경로 셋**)·`src/main/index.ts`·`src/renderer/{index.html,reader.css}`·스킬의 `SKILL.md`(frontmatter `name:` 포함), 그리고 zip 과 폴더 이름. `PARALLAX_SKILL_DIR` 환경변수 이름은 그대로다. `~/.claude/skills/` 에는 설치본이 없어 손댈 것이 없었다.
 
 2026-08-16 이어서 — **vlmparse 를 subtree 로 물리고 파이프라인의 수식 손실을 고쳤다**(사용자 지시). 이제 **새로 변환하는 책도 수식을 지키지 않는다** — 아니, 지운다가 아니라 **지킨다**.
 
@@ -211,7 +223,7 @@ verify 지적 처리: 한글 없음 7건=영문 참고문헌(정상), 용어집 
 - 가상 스크롤 높이 추정치를 조판에 연동(아래 참조).
 - **PDF 열기가 Windows에서 처음으로 동작한다.** `importers/index.ts`가 `process.env.HOME`(Windows에는 없다)을 보던 것을 `os.homedir()`로, 파이썬을 `"python3"`로 고정해 부르던 것을 `findPython()`으로 바꿨다. Windows의 `python3.exe`는 대개 Microsoft Store로 보내는 0바이트 스텁이라, 후보를 실제로 실행해 보고 고른다. 임시 산출물도 원본 옆이 아니라 임시 폴더에 쓰고 지운다(예전에는 `blocks.txt`와 `*.parallax-extract.json`이 문서 폴더에 남았다).
 
-  스킬이 있어야 동작한다. `findSidecar()`가 보는 곳은 `PARALLAX_SKILL_DIR` → `~/.claude/skills/pdf-ko-translate` → `<cwd>/pdf-ko-translate` → `<cwd>/../pdf-ko-translate` 순이다. 지금은 저장소 안에 `pdf-ko-translate/`로 풀어 뒀다(정본은 zip이고 이 사본은 `.gitignore`에 있다).
+  스킬이 있어야 동작한다. `findSidecar()`가 보는 곳은 `PARALLAX_SKILL_DIR` → `~/.claude/skills/pdf2parallax` → `<cwd>/pdf2parallax` → `<cwd>/../pdf2parallax` 순이다. 지금은 저장소 안에 `pdf2parallax/`로 풀어 뒀다(정본은 zip이고 이 사본은 `.gitignore`에 있다).
 
 ### 낭독 — 제거됨 (2026-08-06)
 
@@ -268,7 +280,7 @@ verify 지적 처리: 한글 없음 7건=영문 참고문헌(정상), 용어집 
 
 ## 스킬 상태
 
-**정본은 `pdf-ko-translate.zip` 이다.** 저장소에 풀려 있는 `pdf-ko-translate/` 는 `.gitignore` 에 있다 — 스크립트를 고쳤으면 zip 을 다시 말아야 히스토리에 남는다. 2026-07-28에 다시 말면서 `{references,scripts,templates}/` 라는 항목도 지웠다(중괄호 확장이 안 먹은 셸 명령이 남긴 가짜 디렉터리다).
+**정본은 `pdf2parallax.zip` 이다.** 저장소에 풀려 있는 `pdf2parallax/` 는 `.gitignore` 에 있다 — 스크립트를 고쳤으면 zip 을 다시 말아야 히스토리에 남는다. 2026-07-28에 다시 말면서 `{references,scripts,templates}/` 라는 항목도 지웠다(중괄호 확장이 안 먹은 셸 명령이 남긴 가짜 디렉터리다).
 
 2026-08-12 에 고친 것 — **anthropic 경로의 재시도를 시간으로 잰다**(`_llm.py`). 아래 8/11 항목이 미결로 남긴 자리다. `MAX_RETRY = 3`·5/10/20초는 **35초** 만에 포기해서 몇 분짜리 연결 끊김을 못 넘겼다. `_retry_loop()` 하나로 `call()`·`call_vision()` 을 묶고 **횟수와 시간 둘 다**로 끊는다 — `PKT_MAX_RETRY`(기본 10) · `PKT_RETRY_BUDGET`(기본 900초), 백오프 상한 60초라 실 재시도 폭이 **35초 → 375초**다. `Retry-After` 를 따르고(상한 300초), 영구 오류(400·401·403·404·413·422)는 재시도 없이 즉시 올려 보낸다 — 다시 보내도 같은 답이라 8워커면 헛되이 기다리기만 한다(비전의 400 → `VisionUnavailable` 변환은 그대로다). API 없이 넷을 실측했다: 일시적 오류 재시도 후 성공 · 400 즉시 raise(대기 0) · `Retry-After: 17` 존중 · 소진 시 `RuntimeError` + 백오프 상한. **그래도 셸 재시도 루프는 계속 쓴다** — 안쪽 그물은 blip 용이고 몇 시간짜리 배치에는 바깥 그물이 따로 있어야 한다.
 
@@ -295,15 +307,15 @@ verify 지적 처리: 한글 없음 7건=영문 참고문헌(정상), 용어집 
 - **종결 교정 패스**(`translate.py: fix_nominal_endings`) — 문체 사양만으로는 새는 자리가 남고 누출률이 실행마다 0.6%~8.8%로 흔들린다. 누출은 **긴 블록의 가운데**에 몰린다(1,200자 12문장 단락은 앞뒤가 명사형인데 중간 여섯 문장이 서술형으로 풀린다). 번역이 끝나면 샌 블록만 골라 종결부만 갈아 끼운다 — 재번역이 아니다. 따로 돌리려면 `--fix-endings-only`, 끄려면 `--no-fix-endings`. 청크를 줄이는 것보다 이쪽이 싸다(전체의 10% 안팎만 다시 나간다).
 - **검출기는 인용부호 안을 마스킹한다.** 대사의 `-습니다`는 인물이 실제로 한 말이라 개조식으로 바꾸지 않는 것이 사양인데, 마스킹하지 않으면 그 블록이 영원히 「아직 누출」로 남는다 — 교정자는 규칙대로 손대지 않으므로 다시 보내도 그대로다. `필요`·`중요`가 `요` 로 걸리지 않게 어미 형태(`-어요/-예요/-세요/-지요/-네요/-군요/-까요`)만 본다.
 
-**`nominal` 은 deslop 을 태우지 않는다**(사용자 지시). 교정자의 규칙표가 전부 `-다` 서술문을 전제로 쓰여 있어(`~이 존재한다`→`~이 있다`, 조동사 중첩, 형식주어 …) 명사형 종결을 번역투로 읽고 문장을 통째로 서술형으로 되돌린다 — 문체 자체가 지워진다. `deslop.py` 가 `NO_DESLOP` 을 보고 스스로 빠지고, 굳이 돌리려면 `--strength` 를 명시해야 한다. 정본 zip 재포장 완료(19항목, 바이트 대조 19/19 일치 · UTF-8 손상 0 · 풀어서 import 확인). 옛 zip 은 `%TEMP%\pdf-ko-translate.zip.bak-20260811`.
+**`nominal` 은 deslop 을 태우지 않는다**(사용자 지시). 교정자의 규칙표가 전부 `-다` 서술문을 전제로 쓰여 있어(`~이 존재한다`→`~이 있다`, 조동사 중첩, 형식주어 …) 명사형 종결을 번역투로 읽고 문장을 통째로 서술형으로 되돌린다 — 문체 자체가 지워진다. `deslop.py` 가 `NO_DESLOP` 을 보고 스스로 빠지고, 굳이 돌리려면 `--strength` 를 명시해야 한다. 정본 zip 재포장 완료(19항목, 바이트 대조 19/19 일치 · UTF-8 손상 0 · 풀어서 import 확인). 옛 zip 은 `%TEMP%\pdf2parallax.zip.bak-20260811`.
 
 같은 날 실전에서 밟은 것 둘 — **전권 번역이 `APIConnectionError` 로 죽는다.** 《The Mind Is Flat》 개조식 재번역이 18/99 청크(179블록·$0.98)에서 `RuntimeError: API failed after 3 attempts: Connection error` 로 끝났다. TLS 검사 장비 문제(`CERTIFICATE_VERIFY_FAILED`)와는 다른 증상이고 `truststore` 는 정상이었다 — 그냥 일시적 연결 끊김이다. `_llm.py` 의 `MAX_RETRY = 3`(5/10/20초 백오프)로는 몇 분짜리 blip 을 못 넘긴다. 손실은 없다(청크마다 저장 + 캐시라 재실행하면 완료분은 공짜) 그러나 **밤새 도는 배치는 셸 재시도 루프로 감쌀 것** — 안 그러면 아침에 22% 에서 멈춰 있다. 근본 해결은 `_llm.py` 의 재시도를 늘리는 것인데(datalab 경로는 2026-08-09 에 이미 `TransportError` 백오프를 넣었다) anthropic 경로는 아직 손대지 않았다. **→ 2026-08-12 에 해결(위 항목).**
 
 **백그라운드 작업 알림의 exit code 를 믿지 마라.** 위 크래시를 `python … ; echo EXIT=$?; tail` 로 엮어 띄웠더니 파이썬이 죽었는데도 셸 전체는 0 으로 끝나 완료 알림에 「exit code 0」이 찍혔다. 로그를 열어 보지 않았으면 성공으로 오판했을 자리다. 종료 코드를 로그에 직접 남기거나 명령을 엮지 말 것.
 
-같은 날 이어서 — **문체 지침을 `ko-style` 스킬로 떼어 냈다**(사용자 지시). `pdf-ko-translate` 의 register 명세는 그 파이프라인 안에서만 쓸 수 있었는데, 톤앤매너 자체는 번역이든 새로 쓰는 글이든 쓰인다. 네 파일이다 — `SKILL.md`(축 여섯·문체 여섯 표, 쓰는 순서, deslop 강도표), `references/registers.md`(파이프라인 의존 서술을 걷어낸 판), `references/nominal.md`(개조식 전용 — 규칙 여덟, 실측, 흔한 사고), `scripts/check_endings.py`(종결 검사, **표준 라이브러리만** — 스킬을 받은 곳에 anthropic SDK 가 없어도 돈다). 검사기는 마크다운 코드펜스·표·머리글을 건너뛰고 목록 마커는 벗긴다. 실측 확인: 개조식 샘플 190문장에서 오탐 0, 의도적 서술형 2문장 검출, 누출이 있으면 exit 1.
+같은 날 이어서 — **문체 지침을 `ko-style` 스킬로 떼어 냈다**(사용자 지시). `pdf2parallax` 의 register 명세는 그 파이프라인 안에서만 쓸 수 있었는데, 톤앤매너 자체는 번역이든 새로 쓰는 글이든 쓰인다. 네 파일이다 — `SKILL.md`(축 여섯·문체 여섯 표, 쓰는 순서, deslop 강도표), `references/registers.md`(파이프라인 의존 서술을 걷어낸 판), `references/nominal.md`(개조식 전용 — 규칙 여덟, 실측, 흔한 사고), `scripts/check_endings.py`(종결 검사, **표준 라이브러리만** — 스킬을 받은 곳에 anthropic SDK 가 없어도 돈다). 검사기는 마크다운 코드펜스·표·머리글을 건너뛰고 목록 마커는 벗긴다. 실측 확인: 개조식 샘플 190문장에서 오탐 0, 의도적 서술형 2문장 검출, 누출이 있으면 exit 1.
 
-**이 스킬만 소스를 git 에 넣는다.** `pdf-ko-translate/` 는 `.gitignore` 에 있고 zip 이 정본인데, 그 탓에 「스크립트를 고쳤으면 zip 을 다시 말아야 히스토리에 남는」 마찰이 있고 실제로 zip 이 유일한 구명줄이었던 사고도 있었다(아래 PowerShell 항목). `ko-style` 은 텍스트 네 개뿐이라 소스를 추적하고 `ko-style.zip` 은 배포본으로만 둔다. 두 스킬의 문체 명세가 갈라지지 않게 할 것 — 한쪽을 고치면 다른 쪽도 본다.
+**이 스킬만 소스를 git 에 넣는다.** `pdf2parallax/` 는 `.gitignore` 에 있고 zip 이 정본인데, 그 탓에 「스크립트를 고쳤으면 zip 을 다시 말아야 히스토리에 남는」 마찰이 있고 실제로 zip 이 유일한 구명줄이었던 사고도 있었다(아래 PowerShell 항목). `ko-style` 은 텍스트 네 개뿐이라 소스를 추적하고 `ko-style.zip` 은 배포본으로만 둔다. 두 스킬의 문체 명세가 갈라지지 않게 할 것 — 한쪽을 고치면 다른 쪽도 본다.
 
 2026-08-08~09 에 고친 것 — **네 번째 책 《Beyond Weird》(Philip Ball, 양자역학 교양서, 175쪽 순수 스캔본)를 변환하면서 `pagecheck.py` 에서 셋.** 산출물은 `D:\ebook\__output__\beyond_weird.parallax`(1,120블록 · 번역 1,072 · 그림 37 · 제외 14), 백업은 `beyond_weird.book.json`.
 
@@ -420,7 +432,7 @@ verify 지적 처리: 한글 없음 7건=영문 참고문헌(정상), 용어집 
 
 Restart Manager 를 쓸 때 물린 것 둘 — **디렉터리를 섞어 넘기면 등록이 조용히 실패해** 목록이 통째로 비어 나온다(파일만 넘길 것). 그리고 `powershell -File script -Paths a b c` 는 첫 하나만 묶고 나머지를 위치 인자로 흘려 죽으므로, 경로 목록은 **파일로** 넘긴다.
 
-**PowerShell 로 UTF-8 한글 파일을 건드리지 말 것.** 2026-08-02 에 `(Get-Content …) | Set-Content -Encoding utf8` 로 스킬의 `references/registers.md` 를 **되돌릴 수 없게 망가뜨렸다.** PowerShell 5.1 의 `Get-Content` 는 UTF-8 을 cp949 로 읽어 그 시점에 글자를 잃는다 — 다시 utf8 로 써도 잃은 것은 돌아오지 않고, 되돌리려는 시도는 BOM(`﻿`)과 `\x80` 만 더 남겼다. 원본은 `pdf-ko-translate.zip` 에서 꺼내 살렸다. **파일 편집은 Read/Write/Edit 도구나 파이썬으로 한다.** zip 정본이 유일한 구명줄이었다는 점도 기억할 것.
+**PowerShell 로 UTF-8 한글 파일을 건드리지 말 것.** 2026-08-02 에 `(Get-Content …) | Set-Content -Encoding utf8` 로 스킬의 `references/registers.md` 를 **되돌릴 수 없게 망가뜨렸다.** PowerShell 5.1 의 `Get-Content` 는 UTF-8 을 cp949 로 읽어 그 시점에 글자를 잃는다 — 다시 utf8 로 써도 잃은 것은 돌아오지 않고, 되돌리려는 시도는 BOM(`﻿`)과 `\x80` 만 더 남겼다. 원본은 `pdf2parallax.zip` 에서 꺼내 살렸다. **파일 편집은 Read/Write/Edit 도구나 파이썬으로 한다.** zip 정본이 유일한 구명줄이었다는 점도 기억할 것.
 
 **백그라운드 작업 출력을 `Select-Object -Last N` 으로 거르지 말 것.** 파이프가 전체를 버퍼링해 로그 파일이 0바이트로 남는다 — 전권 deslop 이 1117개 중 758개에서 죽었을 때 무슨 일이 있었는지 볼 수 없었다.
 

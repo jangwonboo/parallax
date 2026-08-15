@@ -96,4 +96,4 @@ scripts/
 
 ## 출처
 
-`pdf-ko-translate` 스킬의 번역 파이프라인에서 쓰던 register 명세를 파이프라인과 무관하게 쓸 수 있도록 떼어 낸 것이다. 그쪽에서는 `translate.py --register <name>` 으로 같은 축을 조립해 쓰고, `nominal`의 종결 교정은 `translate.py --fix-endings-only` 가 자동으로 한다. 두 곳의 명세가 갈라지지 않게 할 것 — 고쳤으면 양쪽을 함께 본다.
+`pdf2parallax` 스킬의 번역 파이프라인에서 쓰던 register 명세를 파이프라인과 무관하게 쓸 수 있도록 떼어 낸 것이다. 그쪽에서는 `translate.py --register <name>` 으로 같은 축을 조립해 쓰고, `nominal`의 종결 교정은 `translate.py --fix-endings-only` 가 자동으로 한다. 두 곳의 명세가 갈라지지 않게 할 것 — 고쳤으면 양쪽을 함께 본다.

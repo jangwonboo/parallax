@@ -26,6 +26,14 @@
 
 > **낭독(TTS)은 2026-08-06 에 통째로 걷어냈다**(사용자 지시). 지운 것: `src/main/tts/`·`vendor/supertonic-nodejs/`·`scripts/fetch-tts-assets.mjs`·`spec-tts.md`, main 의 `tts:*` IPC 전부, preload 의 `tts` 표면과 `tts:state`/`tts:progress` 채널, 렌더러의 낭독 툴바(`sayBar`)·하이라이트·mp3 내보내기, `types.ts` 의 `isSpeakable`, 의존성 `onnxruntime-node`·`@breezystack/lamejs` 와 `asarUnpack`, `.gitignore` 의 `tts-assets/`·`tts.zip` 항목. `.npmrc` 와 `scripts/rebuild-native.mjs` 는 better-sqlite3 용이라 남는다. 사전 열기(더블클릭)와 짝 강조는 낭독과 무관하게 그대로다. 아래 낭독 관련 기록은 전사(前史)로만 남긴 것이다 — johnb PC 의 `tts-assets/` 정션과 `tts.zip` 도 이제 쓸 데가 없다.
 
+2026-08-15 이어서 — **Markdown 내보내기도 목차와 같은 규칙으로 머리글을 단다**(사용자 지시). 전에는 `MD_HEAD` 로 블록 유형을 그대로 `#`/`##`/`###` 에 대응만 해서, 목차에는 「CHAPTER 1 · The Meaning of Meaning」 한 줄인 것이 md 에서는 `# CHAPTER 1` 다음 `## The Meaning of Meaning` 두 줄로 갈렸다. 규칙을 **`src/shared/headings.ts` 한 곳으로** 뺐다(`MAX_HEADING`·`isNumberedLabel`·`mergesWithNext`·`MERGE_SEP`) — `Doc.outline()` 과 `renderMarkdown()` 이 같은 것을 부른다. 두 벌로 두면 반드시 어긋나고, 이 저장소는 스키마를 이중으로 적어 둔 값을 이미 치르고 있다.
+
+내보내기 쪽만 다른 것 하나: **길이 상한에 걸린 오탐 제목을 목차는 감추지만 내보내기는 문단으로 내린다.** 감추면 글이 사라진다 — 태그만 떼고 글은 남긴다. 인접 판정은 목차가 SQL 의 `rn`, 내보내기가 배열의 이웃(버린 블록은 건너뛴다)으로 서로 다르게 알지만 뜻은 같다. 병합 판정은 **양쪽 모두 원문으로** 한다 — 번역에서는 수사 꼴이 달라진다(`CHAPTER 1` → `제1장`). 합칠 때 잇는 글은 그 언어의 것이라 한글 파일은 `# 제1장 · 의미의 의미` 로 나온다.
+
+실측(책 넷): md 머리글이 목차와 **개수·레벨·글자까지 1:1 일치**(92/68/295/22). 글 손실 0 — 원문·한글 각각 945·1,715블록을 md 안에서 다시 찾아 확인했다. 오탐 제목은 머리글이 아니라 문단으로 들어가 있다.
+
+> 남는 것 둘. ① md 레벨은 **블록 유형 그대로**라 원본이 건너뛴 자리는 md 도 건너뛴다(signals 에 `#` 다음 `###` 가 있다 — 부 밑에 장 없이 절이 바로 오는 자리다). 목차는 스택 깊이로 그려 화면에서는 안 드러난다. 트리 깊이로 다시 매기면 markdown 린트(MD001)는 조용해지지만 같은 종류의 절이 자리에 따라 `##`·`###` 로 갈린다 — 지금은 원본에 충실한 쪽을 골랐다. ② **리더 본문은 아직 그 오탐 블록을 h2 로 그린다**(129자짜리가 굵은 큰 글씨로 문단 한가운데 선다). 목차와 내보내기만 손봤고 본문 조판은 건드리지 않았다.
+
 2026-08-15 이어서 — **목차에 계층을 넣었다**(사용자 지시). 시작은 「목차로 구분된 내용들이 hierarchy 가 없다」였는데, 재 보니 **계층은 이미 데이터에 있었고 화면이 일부러 안 그리고 있었다.** `outline()` 은 진작 `level: 1|2|3` 을 내려보내고 렌더러도 `data-level` 을 찍는데, CSS 가 `.toc a[data-level] { padding-left: .4rem }` 로 전부 왼쪽에 붙였다 — 2026-07-27 의 「들여쓰기·크기 차이 없이 위계는 굵기로」 결정이다. 그 판단은 **제목이 두 단계뿐이던 때**의 것이고, 부 > 장 > 절 세 단계인 책에서는 굵기 둘로 세 단계가 갈리지 않는다.
 
 책 넷을 재서 문제를 둘로 갈랐다(h1/h2/h3): meaning_of_your_life 13/89/0 · mind_is_flat 7/27/36 · signals 11/58/249 · beyond_weird 2/23/0(원래 평평한 에세이 모음이다).

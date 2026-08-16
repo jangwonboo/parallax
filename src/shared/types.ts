@@ -70,6 +70,8 @@ export interface AssetMeta {
   w: number;
   h: number;
   alt: string | null;
+  /** 원본 쪽 폭 대비 폭(0~1). 옛 파일에는 없어 null 이다 — 그때는 상한만 건다. */
+  wfrac: number | null;
 }
 
 export interface Heading {

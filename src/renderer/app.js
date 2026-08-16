@@ -244,6 +244,15 @@ function makeRow(b) {
       cell.className = `cell ${side} fig`;
       const img = document.createElement("img");
       img.alt = a?.alt || "";
+      /* 원본 쪽에서 차지하던 비율대로 그린다. 상한만 걸면 쪽 귀퉁이의 작은
+         아이콘도 큰 도판과 같은 폭이 되어, 원서의 크기 관계가 사라진다.
+
+         `min()` 의 두 번째 항이 **확대를 막는다** — 비율로는 크게 나와도
+         제 픽셀 크기를 넘지 않는다(확대는 뭉개진다). wfrac 이 없는 옛 파일은
+         CSS 의 상한(90%)만 받는다. */
+      if (a?.wfrac > 0) {
+        img.style.width = `min(${(a.wfrac * 100).toFixed(1)}%, ${a.w}px)`;
+      }
       uriP.then((uri) => {
         if (uri) img.src = uri;
         img.onload = () => { measure(); rebuildTops(); };

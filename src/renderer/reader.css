@@ -344,10 +344,15 @@ body.sel-src .cell.ko, body.sel-ko .cell.src { user-select: none; }
   text-align: center; text-indent: 0;
 }
 .row-figure img {
-  /* 칸 폭의 60%를 상한으로 축소만 한다. 원본이 그보다 작으면 그대로 —
+  /* 칸 폭의 90%를 상한으로 축소만 한다. 원본이 그보다 작으면 그대로 —
      확대는 뭉개진다. 양쪽 다 auto + max-width 하나뿐이라 비율은 항상
-     유지되고 잘리는 곳도 없다(max-height 를 두면 비율이 깨진다 — 실측). */
-  width: auto; height: auto; max-width: 60%;
+     유지되고 잘리는 곳도 없다(max-height 를 두면 비율이 깨진다 — 실측).
+
+     60% 였던 것을 2026-08-16 에 90% 로 올렸다(사용자 지시). 좌우 대역이라
+     그림에 쓸 폭이 애초에 절반뿐이고, **표를 오려 온 그림은 빽빽한 글자**라
+     60% 에서는 1,228px 짜리 표가 328px 로 줄어 읽을 수 없었다. 표와 그림에
+     같은 규칙을 쓴다 — 나누면 어느 쪽이 표인지 렌더러가 알아야 한다. */
+  width: auto; height: auto; max-width: 90%;
 }
 [data-theme="night"] .row-figure img { filter: brightness(.88); }
 

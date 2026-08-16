@@ -26,6 +26,9 @@ CREATE INDEX IF NOT EXISTS block_page  ON block(page);
 CREATE TABLE IF NOT EXISTS superseded (page INTEGER PRIMARY KEY, payload TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS asset (
   id TEXT PRIMARY KEY, mime TEXT NOT NULL, w INTEGER, h INTEGER, alt TEXT,
+  -- 원본 쪽 폭 대비 이 그림의 폭(0~1). 리더가 **원본에서 차지하던 비율대로**
+  -- 그린다 — 작은 아이콘을 칸 가득 늘리지 않기 위한 값이다. 옛 파일에는 없다.
+  wfrac REAL,
   data BLOB NOT NULL
 );
 CREATE TABLE IF NOT EXISTS glossary (
@@ -81,7 +84,8 @@ export class Doc {
     pageCheck?: T.PageCheck | null,
     /* Datalab 재판독이 잘라 보낸 그림. figure 블록의 src 가 여기 id 를 가리킨다.
        스킬 export.py 와 같은 이관이다 — 한쪽을 고치면 다른 쪽도. */
-    assets?: Record<string, { mime: string; w: number; h: number; alt?: string; b64: string }>
+    assets?: Record<string, { mime: string; w: number; h: number; alt?: string;
+                              wfrac?: number; b64: string }>
   ): Doc {
     const db = new Database(path);
     db.exec(DDL);
@@ -103,7 +107,7 @@ export class Doc {
     );
     const sup = db.prepare("INSERT INTO superseded(page,payload) VALUES (?,?)");
     const insAsset = db.prepare(
-      "INSERT INTO asset(id,mime,w,h,alt,data) VALUES (?,?,?,?,?,?)");
+      "INSERT INTO asset(id,mime,w,h,alt,wfrac,data) VALUES (?,?,?,?,?,?,?)");
     db.transaction(() => {
       blocks.forEach((b, i) =>
         ins.run(b.id, (i + 1) * T.ORD_STEP, b.page ?? null, b.type, b.src, b.flags ?? 0, now)
@@ -112,7 +116,8 @@ export class Doc {
         sup.run(parseInt(pg, 10), JSON.stringify(items));
       }
       for (const [aid, a] of Object.entries(assets ?? {})) {
-        insAsset.run(aid, a.mime, a.w, a.h, a.alt ?? null, Buffer.from(a.b64, "base64"));
+        insAsset.run(aid, a.mime, a.w, a.h, a.alt ?? null, a.wfrac ?? null,
+                     Buffer.from(a.b64, "base64"));
       }
       if (pageCheck) {
         const pc = db.prepare(
@@ -132,14 +137,14 @@ export class Doc {
   /** 그림 목록(데이터 제외). 렌더러가 문서를 열 때 한 번 받아 높이 추정에 쓴다. */
   assetsMeta(): T.AssetMeta[] {
     return this.db
-      .prepare("SELECT id,mime,w,h,alt FROM asset")
+      .prepare("SELECT id,mime,w,h,alt,wfrac FROM asset")
       .all() as T.AssetMeta[];
   }
 
   /** 그림 데이터. 렌더러가 data URI 로 만들어 <img> 에 건다. */
   asset(id: string): (T.AssetMeta & { b64: string }) | null {
     const r = this.db
-      .prepare("SELECT id,mime,w,h,alt,data FROM asset WHERE id=?")
+      .prepare("SELECT id,mime,w,h,alt,wfrac,data FROM asset WHERE id=?")
       .get(id) as any;
     if (!r) return null;
     const { data, ...meta } = r;

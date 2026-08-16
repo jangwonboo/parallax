@@ -48,9 +48,25 @@ export class Doc {
     this.path = path;
   }
 
+  /** 열을 나중에 붙인다.
+   *
+   * `CREATE TABLE IF NOT EXISTS` 는 **이미 있는 표를 건드리지 않는다.** DDL 에
+   * 열을 적어 두는 것만으로는 옛 파일에 생기지 않고, 그 열을 SELECT 하는 순간
+   * `no such column` 으로 문서가 안 열린다 — 2026-08-16 에 `wfrac` 을 넣으면서
+   * 실제로 그렇게 됐다. 열을 늘릴 때는 DDL 과 **여기 둘 다** 고칠 것. */
+  private static migrate(db: Database.Database): void {
+    const add = (table: string, col: string, decl: string) => {
+      const has = (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[])
+        .some((c) => c.name === col);
+      if (!has) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${decl}`);
+    };
+    add("asset", "wfrac", "REAL");
+  }
+
   static open(path: string): Doc {
     const db = new Database(path);
     db.exec(DDL);
+    Doc.migrate(db);
     const v = db.prepare("SELECT schema_version v FROM doc LIMIT 1").get() as
       | { v: number }
       | undefined;

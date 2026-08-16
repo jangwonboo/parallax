@@ -19,6 +19,8 @@ classifiers = [
 dependencies = [
   "httpx>=0.24",
   "pymupdf>=1.23",
+  # 표를 쪽 이미지에서 오려 낸다. 없으면 표는 HTML(table_raw)로 물러난다.
+  "pillow>=10",
   # TLS 검사 장비가 있는 망에서 검증을 OS 에 맡긴다. 없어도 돌지만, 그런 망에서는
   # 모든 호출이 CERTIFICATE_VERIFY_FAILED 로 죽는다.
   "truststore>=0.9; python_version >= '3.10'",

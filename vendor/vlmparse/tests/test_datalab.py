@@ -145,3 +145,74 @@ def test_unknown_block_type_rejected():
     with pytest.raises(ValueError):
         Document.from_dict({"source": "x", "backend": "y",
                             "pages": [{"page": 1, "blocks": [{"type": "nope", "text": ""}]}]})
+
+
+# ── 표를 그림으로 ────────────────────────────────────────
+def _page_png(tmp_path, w=1485, h=2200):
+    from PIL import Image, ImageDraw
+    im = Image.new("RGB", (w, h), "white")
+    d = ImageDraw.Draw(im)
+    d.rectangle([160, 240, 1390, 1250], outline="black", width=3)
+    d.text((300, 600), "TABLE", fill="black")
+    f = tmp_path / "p0050.jpg"
+    im.save(f)
+    return f
+
+
+def test_table_becomes_figure_when_page_image_given(tmp_path):
+    """표는 쪽에서 오려 figure 로 나가고 HTML 은 alt 에 남는다."""
+    img = _page_png(tmp_path)
+    chunks = [{"block_type": "Table", "html": "<table><tr><td>a</td></tr></table>",
+               "bbox": [166.0, 244.0, 1384.0, 1240.0]}]
+    items, assets = dl.chunks_to_blocks(chunks, page_image=img)
+    assert [i["type"] for i in items] == ["figure"]
+    aid = items[0]["text"]
+    assert aid in assets
+    a = assets[aid]
+    assert a["mime"] == "image/png"
+    assert a["w"] > 1000 and a["h"] > 900
+    # 글을 잃지 않는다 — 검색·나중의 셀 번역이 여기서 되살아난다
+    assert "<table>" in a["alt"]
+
+
+def test_table_falls_back_to_html_without_page_image():
+    chunks = [{"block_type": "Table", "html": "<table><tr><td>a</td></tr></table>",
+               "bbox": [166.0, 244.0, 1384.0, 1240.0]}]
+    items, assets = dl.chunks_to_blocks(chunks)          # 쪽 이미지 없음
+    assert [i["type"] for i in items] == ["table_raw"]
+    assert assets == {}
+
+
+def test_tables_html_mode_keeps_markup(tmp_path):
+    img = _page_png(tmp_path)
+    chunks = [{"block_type": "Table", "html": "<table><tr><td>a</td></tr></table>",
+               "bbox": [166.0, 244.0, 1384.0, 1240.0]}]
+    items, _ = dl.chunks_to_blocks(chunks, page_image=img, tables="html")
+    assert items[0]["type"] == "table_raw"
+
+
+def test_table_like_types_also_cropped(tmp_path):
+    """TableGroup·Form 도 표에 준한다."""
+    img = _page_png(tmp_path)
+    for bt in ("TableGroup", "Form"):
+        items, _ = dl.chunks_to_blocks(
+            [{"block_type": bt, "html": "<table><tr><td>x</td></tr></table>",
+              "bbox": [166.0, 244.0, 1384.0, 1240.0]}], page_image=img)
+        assert [i["type"] for i in items] == ["figure"], bt
+
+
+def test_bbox_missing_falls_back(tmp_path):
+    img = _page_png(tmp_path)
+    items, _ = dl.chunks_to_blocks(
+        [{"block_type": "Table", "html": "<table><tr><td>a</td></tr></table>"}],
+        page_image=img)
+    assert items[0]["type"] == "table_raw"
+
+
+def test_tiny_region_not_cropped(tmp_path):
+    """오려 낸 것이 너무 작으면 그림이 아니다 — 글로 남긴다."""
+    img = _page_png(tmp_path)
+    items, _ = dl.chunks_to_blocks(
+        [{"block_type": "Table", "html": "<table><tr><td>a</td></tr></table>",
+          "bbox": [10.0, 10.0, 40.0, 40.0]}], page_image=img)
+    assert items[0]["type"] == "table_raw"

@@ -58,7 +58,8 @@ def cmd_read(args: argparse.Namespace) -> int:
     doc = read_pdf(
         args.pdf, backend=args.backend, pages=args.pages, mode=args.mode,
         dpi=args.dpi, long_edge=args.long_edge, image_format=args.image_format,
-        workers=args.workers, api_key=args.api_key, work_dir=args.work_dir,
+        workers=args.workers, tables=args.tables,
+        api_key=args.api_key, work_dir=args.work_dir,
         use_cache=not args.no_cache, on_progress=None if args.quiet else progress,
     )
     if not args.quiet:
@@ -130,6 +131,8 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--long-edge", type=int, default=DEFAULT_LONG_EDGE)
     r.add_argument("--image-format", default="jpg", choices=("jpg", "png"))
     r.add_argument("--workers", type=int, default=8)
+    r.add_argument("--tables", default="image", choices=("image", "html"),
+                   help="image 는 쪽에서 오려 그림으로, html 은 태그를 보존한 글로")
     r.add_argument("--api-key")
     r.add_argument("--work-dir", help="쪽 이미지와 캐시가 놓일 곳")
     r.add_argument("--no-cache", action="store_true",

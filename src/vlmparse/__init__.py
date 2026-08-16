@@ -44,12 +44,16 @@ def read_pdf(
     long_edge: int = DEFAULT_LONG_EDGE,
     image_format: str = "jpg",
     workers: int = 8,
+    tables: str = "image",
     api_key: str | None = None,
     work_dir: str | Path | None = None,
     use_cache: bool = True,
     on_progress: Callable[[int, int], None] | None = None,
 ) -> Document:
     """PDF 를 읽어 `Document` 로 돌려준다.
+
+    `tables="image"`(기본)면 표를 쪽 이미지에서 오려 `figure` 로 낸다.
+    `"html"` 이면 `table_raw`(HTML)로 둔다.
 
     한 쪽이 실패해도 전체를 멈추지 않는다 — 그 쪽만 `Page.error` 로 표시하고
     나머지를 계속한다. **빈 쪽은 조용하기 때문에** 실패를 반드시 남겨야 한다.
@@ -103,7 +107,10 @@ def read_pdf(
         if got.get("error"):
             doc.pages.append(Page(page=pno, error=got["error"]))
             continue
-        items, assets = be.chunks_to_blocks(got.get("chunks") or [])
+        # 표를 오려 내려면 **판독기에 보낸 그 쪽 이미지**가 필요하다 —
+        # bbox 가 그 좌표계로 온다.
+        items, assets = be.chunks_to_blocks(got.get("chunks") or [],
+                                            page_image=imgs.get(pno), tables=tables)
         for aid, a in assets.items():
             doc.assets.setdefault(aid, Asset(**a))
         doc.pages.append(Page(page=pno,

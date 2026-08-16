@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import io
 import os
 import re
 import threading
@@ -25,6 +26,17 @@ MODES = ("fast", "balanced", "accurate")
 #: 이보다 작은 그림은 장식 조각(불릿·괘선)으로 보고 버린다.
 MIN_FIGURE_PX = 64
 
+# 표에 준하는 유형. **그림으로 오려 낸다**(`tables="image"`, 기본).
+#
+# HTML 재구성은 잘 되지만 편집된 표의 조판(열 폭·굵기·괘선의 뜻)까지는 살리지
+# 못한다. 원본을 오려 내면 보이는 것은 원서 그대로다. 대신 글자를 잃으므로
+# **HTML 을 asset.alt 에 함께 넣어** 검색·나중의 셀 단위 번역 여지를 남긴다.
+TABLE_LIKE = {"Table", "TableGroup", "Form"}
+
+#: 오려 낼 때의 여유(px). 괘선이 잘리지 않을 만큼만 — 넉넉히 주면 아래 각주가
+#: 딸려 온다(실측: PAD 10 에서 50쪽 표에 각주 한 줄이 붙었다).
+CROP_PAD = 5
+
 # 유형째로 버리는 것: 쪽 표시(러닝 헤더·쪽 번호)와 그림의 *텍스트*. 모델이 그림에
 # 지어 붙인 설명문은 판독이 아니라 묘사라 본문이 아니다 — 그림 데이터 자체는
 # harvest_images() 가 asset 으로 줍고 alt 로만 보관한다.
@@ -35,6 +47,8 @@ TYPE = {
     "Caption": "figcaption",
     "Footnote": "footnote",
     "Table": "table_raw",
+    "TableGroup": "table_raw",
+    "Form": "table_raw",
     "Equation": "equation",
     # TextInlineMath 는 「인라인 수식이 든 단락」이다 — 단락이므로 p 로 두되
     # 아래 html_to_text 가 <math> 를 $…$ 로 살린다.
@@ -188,7 +202,7 @@ def equation_text(html: str) -> str:
     return f"$${body}$$" if body else ""
 
 
-def harvest_images(chunk: dict) -> list[tuple[str, dict]]:
+def harvest_images(chunk: dict, page_w: int = 0) -> list[tuple[str, dict]]:
     """청크에 실려 온 그림을 (asset id, asset) 로 줍는다.
 
     Picture 블록만 보면 안 된다 — 실측에서 표지 그림이 SectionHeader 안에
@@ -226,23 +240,85 @@ def harvest_images(chunk: dict) -> list[tuple[str, dict]]:
         # 다른 그림 16장이 왔고, 파일명을 id 로 쓰면 덮어써져 그림이 뒤바뀐다.
         aid = hashlib.sha1(data).hexdigest()[:16]
         mime = "image/jpeg" if data[:3] == b"\xff\xd8\xff" else "image/png"
-        out.append((aid, {"mime": mime, "w": w, "h": h, "alt": alt, "b64": b64}))
+        # 쪽 폭 대비 비율. 판독기가 준 그림에도 bbox 가 오므로 거기서 잰다 —
+        # 없으면 0(모름)이고 리더는 상한만 건다.
+        bb = chunk.get("bbox")
+        wfrac = round((float(bb[2]) - float(bb[0])) / page_w, 4) if bb and page_w else 0.0
+        out.append((aid, {"mime": mime, "w": w, "h": h, "alt": alt,
+                          "wfrac": wfrac, "b64": b64}))
     return out
 
 
-def chunks_to_blocks(chunks: list[dict]) -> tuple[list[dict], dict]:
-    """chunks → ([{type,text}], {asset_id: asset}). 유형이 있으니 대응만 한다."""
+def crop_region(page_image: Path, bbox: list[float], alt: str = "",
+                pad: int = CROP_PAD) -> tuple[str, dict] | None:
+    """쪽 이미지에서 bbox 만큼 오려 asset 으로. (asset id, asset) 또는 None.
+
+    **bbox 는 우리가 보낸 쪽 이미지와 같은 좌표계다**(실측: 쪽 1485×2200 에
+    bbox 최대 1384×1240). 그래서 배율 환산이 필요 없다 — 판독기에 보낸 그
+    이미지를 그대로 자르면 된다.
+    """
+    try:
+        from PIL import Image
+    except ImportError:                                    # pragma: no cover
+        return None
+    try:
+        im = Image.open(page_image)
+    except Exception:
+        return None
+    x0, y0, x1, y1 = (float(v) for v in bbox)
+    box = (max(0, int(x0) - pad), max(0, int(y0) - pad),
+           min(im.width, int(x1) + pad), min(im.height, int(y1) + pad))
+    if box[2] - box[0] < MIN_FIGURE_PX or box[3] - box[1] < MIN_FIGURE_PX:
+        return None
+    # 쪽 폭 대비 비율을 함께 싣는다 — 리더가 원본에서 차지하던 만큼 그린다.
+    wfrac = round((box[2] - box[0]) / im.width, 4)
+    crop = im.crop(box).convert("RGB")
+    buf = io.BytesIO()
+    crop.save(buf, "PNG", optimize=True)                   # 표는 글자다 — 무손실로
+    data = buf.getvalue()
+    aid = hashlib.sha1(data).hexdigest()[:16]
+    return aid, {"mime": "image/png", "w": crop.width, "h": crop.height, "wfrac": wfrac,
+                 # 보이는 것은 그림이지만 글은 여기 남는다 — 검색과 나중의
+                 # 셀 단위 번역이 이 자리에서 되살아난다.
+                 "alt": alt, "b64": base64.b64encode(data).decode()}
+
+
+def chunks_to_blocks(chunks: list[dict], page_image: Path | None = None,
+                     tables: str = "image") -> tuple[list[dict], dict]:
+    """chunks → ([{type,text}], {asset_id: asset}). 유형이 있으니 대응만 한다.
+
+    `tables="image"`(기본)면 표를 쪽 이미지에서 오려 `figure` 블록으로 낸다 —
+    쪽 이미지가 없으면 조용히 `table_raw`(HTML)로 물러난다.
+    `tables="html"` 이면 늘 `table_raw` 다.
+    """
     items: list[dict] = []
     assets: dict[str, dict] = {}
+    page_w = 0
+    if page_image:
+        try:
+            from PIL import Image
+            page_w = Image.open(page_image).width
+        except Exception:
+            page_w = 0
     for c in chunks:
         bt = c.get("block_type") or ""
-        for aid, asset in harvest_images(c):
+        for aid, asset in harvest_images(c, page_w):
             assets[aid] = asset
             items.append({"type": "figure", "text": aid})
         if bt in DROP:
             continue
         html = c.get("html") or ""
-        if bt == "Table":
+
+        if bt in TABLE_LIKE and tables == "image" and page_image and c.get("bbox"):
+            got = crop_region(page_image, c["bbox"], alt=html)
+            if got:
+                aid, asset = got
+                assets[aid] = asset
+                items.append({"type": "figure", "text": aid})
+                continue
+            # 오려내기에 실패하면 글이라도 남긴다 — 아래 table_raw 로 떨어진다
+
+        if bt in TABLE_LIKE:
             # 표는 구조가 곧 내용이다 — 태그를 걷으면 셀 경계가 사라진다
             text = re.sub(r"\s+", " ", html).strip()
         elif bt == "Equation":

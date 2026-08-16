@@ -31,6 +31,21 @@
 
 > **낭독(TTS)은 2026-08-06 에 통째로 걷어냈다**(사용자 지시). 지운 것: `src/main/tts/`·`vendor/supertonic-nodejs/`·`scripts/fetch-tts-assets.mjs`·`spec-tts.md`, main 의 `tts:*` IPC 전부, preload 의 `tts` 표면과 `tts:state`/`tts:progress` 채널, 렌더러의 낭독 툴바(`sayBar`)·하이라이트·mp3 내보내기, `types.ts` 의 `isSpeakable`, 의존성 `onnxruntime-node`·`@breezystack/lamejs` 와 `asarUnpack`, `.gitignore` 의 `tts-assets/`·`tts.zip` 항목. `.npmrc` 와 `scripts/rebuild-native.mjs` 는 better-sqlite3 용이라 남는다. 사전 열기(더블클릭)와 짝 강조는 낭독과 무관하게 그대로다. 아래 낭독 관련 기록은 전사(前史)로만 남긴 것이다 — johnb PC 의 `tts-assets/` 정션과 `tts.zip` 도 이제 쓸 데가 없다.
 
+2026-08-16 저녁 — **표를 그림으로 오려 낸다**(사용자 지시: 「표 capture 하는 것은 버려줘. 품질이 안 나오니 그림으로 간주」). HTML 재구성 자체는 잘 됐지만(rowspan 병합·셀 안 목록·엔티티까지 렌더 시험 통과) 편집된 표의 조판까지는 살리지 못한다 — 원본을 오려 내면 보이는 것이 원서 그대로다.
+
+**Datalab 은 표 그림을 주지 않는다.** Table 청크의 `images` 는 비어 있고 HTML 만 온다. 대신 **`bbox` 가 오는데, 그것이 우리가 보낸 쪽 이미지와 같은 좌표계다**(실측: 쪽 1485×2200 에 bbox 최대 1384×1240) — 배율 환산 없이 그대로 자르면 된다. `Table`·`TableGroup`·`Form` 을 오려 `figure` 로 낸다(`tables="image"` 기본, `--tables html` 로 옛 동작).
+
+- **글을 버리지 않는다.** HTML 을 `asset.alt` 에 함께 넣어 검색과 나중의 셀 단위 번역 여지를 남긴다(실측 2612·1212·1039자). 보이는 것은 그림, 글은 딸린 데이터다.
+- **JPEG 품질 90 + `subsampling=0`(4:4:4).** 무손실 PNG 는 표 셋에 1.5MB 였다. 기본 4:2:0 이면 표는 글자라 획 가장자리에 색번짐이 생긴다 — 4:4:4 로 끄면 눈으로 무손실과 구별되지 않으면서 1,565 → 762KB 다. **90 아래로 내리지 말 것.**
+- **오려 낼 여유는 5px.** 10px 에서는 50쪽 표에 아래 각주 한 줄이 딸려 왔다.
+- 쪽 이미지가 없거나·bbox 가 없거나·오려낸 것이 너무 작으면 `table_raw` 로 물러난다.
+
+**`asset.wfrac`(원본 쪽 폭 대비 폭, 0~1)을 새로 싣는다.** 상한만 걸면 쪽 귀퉁이의 140px 아이콘도 큰 도판과 같은 폭이 되어 **원서의 크기 관계가 사라진다.** 리더는 `width: min(wfrac%, 원본px)` 로 그린다 — 두 번째 항이 확대를 막는다(비율로는 크게 나와도 제 픽셀 크기를 넘지 않는다). 상한은 60% → **90%** 로 올렸다(사용자 지시). 실측: 표 0.81~0.83 → 화면 444~456px, 아이콘 0.094 → 51px. **`wfrac` 은 1로 자른다** — 판독기가 쪽 밖으로 넘는 bbox 를 줄 때가 있다(실측 1.1342).
+
+스키마가 늘어 **네 곳을 함께** 고쳤다: 앱 `db.ts`(DDL·`Doc.create`·SELECT 둘)·`types.ts` 의 `AssetMeta`·스킬 `_parallax.py` DDL·`export.py` INSERT·`parallax_import.py` 왕복. `wfrac` 없는 옛 파일은 상한만 받는다.
+
+> **파이프라인이 새 경로를 못 쓰고 있었다 — 이것이 핵심 수정이다.** `pagecheck.py` 가 `chunk_items(chunks)` 로만 불러 **쪽 이미지를 안 넘겼고**, 그래서 표가 조용히 `table_raw` 로 떨어져 리더가 HTML 을 글자로 보여줬다. `page_image=page_img(pno)` 를 넘기고 `--tables` 옵션을 붙였다. 함께 고친 것 둘: **`--pages` 가 범위 하나만 받아** `50,97,429` 로 주면 `ValueError` 로 죽었다(`vlmparse.render.parse_pages` 를 쓰게 했다 — 쪽마다 돈이 나가는 도구에서 명령을 여러 번 치게 하면 같은 쪽을 두 번 산다), 그리고 그 자리에 남아 있던 `lo`/`hi` 참조.
+
 2026-08-16 이어서 — **스킬 이름을 `pdf-ko-translate` → `pdf2parallax` 로 바꿨다**(사용자 지시). 판독을 `vlmparse` 로 떼어 내고 나니 옛 이름이 하는 일을 못 말했다. 이제 셋의 이름만으로 경계가 읽힌다:
 
 ```
@@ -470,6 +485,17 @@ pagecheck가 삽입·재구성한 블록은 접미사 ID를 갖는다(`b0052a`).
 **개조식 판본 셋** — `the_mind_is_flat.nominal.parallax`(2026-08-12 오전, 875블록 · 번역 816) · `beyond_weird.nominal.parallax`(같은 날 오후, 1,120블록 · 번역 1,072) · `signals.nominal.parallax`(2026-08-15 저녁, 1,717블록 · 번역 1,715). 각각 뉴닉 판본과 **같은 원문·같은 용어집**에서 갈라져 나왔고 뉴닉 판본은 그대로 있다. 백업은 `*.nominal.book.json`.
 
 > 2026-08-15 에 `__output__` 이 정리돼 **책당 한 파일**만 남아 있다(뉴닉 중복본 삭제). `the_meaning_of_your_life.parallax` 는 아직 뉴닉이고, 사용자가 이번에는 signals 만 지시했다.
+
+**다섯 번째 — 《Rewired》(662쪽 순수 스캔본, 표가 많다)** 를 2026-08-16 에 걸었다. 문체는 **비즈니스(`--register business`, `-다` 평서형 — `--polite` 는 쓰지 않는다)**. 표를 그림으로 오려 내는 새 경로를 처음으로 전권에 태우는 실전이다.
+
+```
+작업 폴더   …/scratchpad/rwfull/        book.json · pages/ · pagecheck.log · pagecheck-report.md
+번역 전 점검 …/scratchpad/rwfull/rewired-pretranslate.parallax
+정본        D:\ebook\__output__\rewired.parallax
+백업        D:\ebook\__output__\rewired.book.json
+```
+
+**번역 전에 `.parallax` 를 먼저 뽑아 앱에서 본다.** `spec.md` 가 「번역 0% 파일도 유효하다」고 정해 둔 것을 **돈 쓰기 전 검문소**로 쓴다 — 662쪽 전권의 표가 정말 그림이 됐는지, 목차 계층이 잡혔는지, 빈 쪽이 없는지를 export(공짜) 한 번으로 확인하고 나서 번역에 $6~10 을 쓴다. 지금까지 확인한 것은 3쪽뿐이었다. 앞선 네 권은 번역까지 끝낸 뒤에야 export 했는데, 그 순서는 판독이 잘못됐을 때 번역비를 통째로 버린다.
 
 **네 번째 책 — `beyond_weird.parallax`**(Philip Ball, 『Beyond Weird』, 2026-08-09). 175쪽 순수 스캔본을 Tesseract 없이 datalab 전 쪽 판독으로만 변환했다(위 스킬 상태 참조). 1,120블록 · 번역 1,072 · 그림 37 · 제외 14(광고 쪽 12 + pagecheck 2) · 문체 newneek. 백업은 `beyond_weird.book.json`. 앱에서 CDP 로 실측 확인 — 목차 22항목, 그림이 좌우 대역에 각각 칸 폭 53%로 비율 유지, 가로 넘침 없음.
 

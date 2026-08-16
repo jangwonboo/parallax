@@ -169,7 +169,7 @@ def test_table_becomes_figure_when_page_image_given(tmp_path):
     aid = items[0]["text"]
     assert aid in assets
     a = assets[aid]
-    assert a["mime"] == "image/png"
+    assert a["mime"] == "image/jpeg"     # PNG 는 표 셋에 1.5MB 였다
     assert a["w"] > 1000 and a["h"] > 900
     # 글을 잃지 않는다 — 검색·나중의 셀 번역이 여기서 되살아난다
     assert "<table>" in a["alt"]

@@ -37,6 +37,9 @@ TABLE_LIKE = {"Table", "TableGroup", "Form"}
 #: 딸려 온다(실측: PAD 10 에서 50쪽 표에 각주 한 줄이 붙었다).
 CROP_PAD = 5
 
+#: 오려 낸 표의 JPEG 품질. 글자라 낮추면 획이 뭉개진다 — 90 아래로 내리지 말 것.
+CROP_JPEG_QUALITY = 90
+
 # 유형째로 버리는 것: 쪽 표시(러닝 헤더·쪽 번호)와 그림의 *텍스트*. 모델이 그림에
 # 지어 붙인 설명문은 판독이 아니라 묘사라 본문이 아니다 — 그림 데이터 자체는
 # harvest_images() 가 asset 으로 줍고 alt 로만 보관한다.
@@ -274,10 +277,16 @@ def crop_region(page_image: Path, bbox: list[float], alt: str = "",
     wfrac = round((box[2] - box[0]) / im.width, 4)
     crop = im.crop(box).convert("RGB")
     buf = io.BytesIO()
-    crop.save(buf, "PNG", optimize=True)                   # 표는 글자다 — 무손실로
+    # JPEG 로 싣는다. 무손실 PNG 는 표 셋에 1.5MB 였다 — 표가 많은 책이면
+    # `.parallax` 가 감당 못 하게 커진다.
+    #
+    # **색 서브샘플링은 끈다**(`subsampling=0` = 4:4:4). 표는 글자라 기본
+    # 4:2:0 이면 획 가장자리에 색번짐이 생긴다. 품질 90 + 4:4:4 면 눈으로는
+    # 무손실과 구별되지 않으면서 크기는 몇 분의 일이다.
+    crop.save(buf, "JPEG", quality=CROP_JPEG_QUALITY, subsampling=0, optimize=True)
     data = buf.getvalue()
     aid = hashlib.sha1(data).hexdigest()[:16]
-    return aid, {"mime": "image/png", "w": crop.width, "h": crop.height, "wfrac": wfrac,
+    return aid, {"mime": "image/jpeg", "w": crop.width, "h": crop.height, "wfrac": wfrac,
                  # 보이는 것은 그림이지만 글은 여기 남는다 — 검색과 나중의
                  # 셀 단위 번역이 이 자리에서 되살아난다.
                  "alt": alt, "b64": base64.b64encode(data).decode()}

@@ -591,6 +591,31 @@ pagecheck가 삽입·재구성한 블록은 접미사 ID를 갖는다(`b0052a`).
 
 `deslop.py` 는 자리가 아니다 — LLM 기반이고 **개조식 책은 통째로 건너뛴다**(그런데 `quantum_mechanics` 25건, `the_meaning_of_your_life` 6건처럼 개조식에도 나온다).
 
+## 빈 쪽 — 판독이 조용히 빠뜨린 쪽들 (2026-08-17)
+
+**판독은 실패한 쪽을 알려 주지 않는다.** 정본 여덟 권을 훑어 보니 **34쪽이 통째로 비어** 있었다. rewired 는 15쪽(p153·536~543 …), the_mind_is_flat 9쪽, the_human_agent_orchestrator 7쪽, quantum_mechanics 5쪽, the_meaning_of_your_life 2쪽, signals 1쪽. 빈 쪽인가 싶어 원본을 렌더해 보니 **p153 에는 「CHAPTER 8」 제목과 본문 네 문단이 그대로 있었다.**
+
+이 때문에 rewired 는 39장 중 **8·34장이 목차에서 사라져** 있었다. 34장은 제목만이 아니라 **본문 여덟 쪽**이 없었다.
+
+**찾는 법.** 쪽 번호에 구멍이 있는지 보면 된다 — 한 줄이다.
+
+```python
+have = {r[0] for r in db.execute("SELECT DISTINCT page FROM block WHERE page IS NOT NULL")}
+missing = [p for p in range(1, max(have) + 1) if p not in have]
+```
+
+**고치는 법.** `pagecheck.py --pages` 로 그 쪽만 다시 읽고, 새 블록만 번역한 뒤 다시 내보낸다. 쪽당 Datalab 1¢ 정도이고 캐시가 나머지를 공짜로 넘긴다. 이번 지출 **약 $0.75**(재판독 34쪽 $0.34 + 번역·deslop $0.41).
+
+`book.json` 이 없어도 된다 — **`parallax_import.py` 가 `.parallax` → `book.json` 을 무손실로 되돌린다.** the_meaning_of_your_life 를 그렇게 고쳤다.
+
+> **남은 하나.** the_mind_is_flat p239 는 다시 읽어도 빈다 — 원본을 보니 **색인 쪽**이다. 번역 리더에서 쓸 데가 없어 그대로 둔다.
+
+### 여기서 돈을 새게 한 두 가지
+
+**`glossary.json` 을 새 작업 폴더에 복사하지 않으면 용어집을 전권 재생성한다.** 10분을 넘겨 죽었다. 원본 작업 폴더에서 **반드시 같이 복사할 것.**
+
+**`.parallax` → `book.json` 왕복에는 `ko_raw` 가 없다.** 그래서 `deslop.py` 가 **전권을 처음 보는 것으로 여기고 다시 돈다**(the_meaning_of_your_life 에서 945블록을 새로 돌기 시작해 240블록·22건을 고친 뒤 시간 초과로 죽었다). 되돌리려면 정본 `.parallax` 의 `ko` 를 다시 덮으면 된다 — 그렇게 복구했다. **쪽 몇 장을 보태는 경우에는 deslop 을 아예 걸지 말 것.**
+
 ## 수사 붙은 제목을 「수사 · 제목」 한 꼴로 (2026-08-17)
 
 원본 조판이 제각각이다 — 붙은 것(`CHAPTER 2THE LAST GENERATION`), 콜론(`Chapter 1: Meet the Interpreter…`), 줄표(`Part I — Foundational…`). **원본 형식을 무시하고** `수사 · 제목` 하나로 맞춘다(`canonical_label_headings`, 구분자는 `LABEL_SEP = " · "` — 리더의 `MERGE_SEP` 과 같다). 목차뿐 아니라 **블록 글 자체**를 바꾸므로 본문에서도 같은 꼴로 보인다. 번역문에도 먹인다(`제2장 마지막 세대` → `제2장 · 마지막 세대`).

@@ -591,6 +591,22 @@ pagecheck가 삽입·재구성한 블록은 접미사 ID를 갖는다(`b0052a`).
 
 `deslop.py` 는 자리가 아니다 — LLM 기반이고 **개조식 책은 통째로 건너뛴다**(그런데 `quantum_mechanics` 25건, `the_meaning_of_your_life` 6건처럼 개조식에도 나온다).
 
+## 수사 붙은 제목을 「수사 · 제목」 한 꼴로 (2026-08-17)
+
+원본 조판이 제각각이다 — 붙은 것(`CHAPTER 2THE LAST GENERATION`), 콜론(`Chapter 1: Meet the Interpreter…`), 줄표(`Part I — Foundational…`). **원본 형식을 무시하고** `수사 · 제목` 하나로 맞춘다(`canonical_label_headings`, 구분자는 `LABEL_SEP = " · "` — 리더의 `MERGE_SEP` 과 같다). 목차뿐 아니라 **블록 글 자체**를 바꾸므로 본문에서도 같은 꼴로 보인다. 번역문에도 먹인다(`제2장 마지막 세대` → `제2장 · 마지막 세대`).
+
+**가르는 자리는 인쇄 목차가 정한다.** 글자만 보고는 못 가른다 — 로마자·영문 서수가 제목 첫 글자를 삼킨다. `PART IIDIFFERENT PLAYERS` 를 탐욕 매칭하면 **D 도 로마자라** `PART IIDI` + `FFERENT PLAYERS` 로 끊긴다. 후보를 전부 내놓고 **뒤쪽 열쇠가 목차 항목과 맞는 것**을 고른다. 맞는 것이 없으면 원래 띄어쓰기가 있던 자리로 물러선다 — 근거 없이 자르지 않는다.
+
+**밟은 함정 셋.**
+
+1. **번역만 따로 보면 안 된다.** `signals` 의 `Note` 가 「2장 주석」으로 옮겨져 있어 원문에 장 번호가 없는데도 「2장 · 주석」이 됐다. **원문이 갈렸을 때만** 번역을 손댄다.
+2. **맨 낱말 수사는 붙어 있을 때만.** `INTRODUCTIONTHE PERFECT AI …` 는 갈라야 하지만, `FOREWORD BY MARSHALL GOLDSMITH` 를 같은 규칙에 넣으면 「FOREWORD · BY MARSHALL GOLDSMITH」가 된다 — 뒤가 제목인지 딸린 말인지 가릴 방법이 없다. 이미 콜론·공백으로 갈려 있는 것은 손대지 않는다.
+3. **순서.** `canonical_label_headings` 가 `normalize_headings` **앞**에 와야 한다. 붙어 있으면 레벨 판정이 그것을 장으로 못 읽는다.
+
+목차 항목이 맨 낱말 수사를 달고 있으면(`INTRODUCTION: The Perfect AI …`) 그 수사를 뗀 열쇠도 정답지에 넣는다 — 본문은 붙어 오므로 뗀 것끼리 맞대야 자리가 잡힌다.
+
+**결과.** 여덟 권 55블록. `the_human_agent_orchestrator` 는 목차 대조 누락이 **5건 → 1건**(의도적으로 숨긴 `CONTENTS` 뿐)으로 떨어졌다 — PART I~IV 넷이 `PART IFROM SUPERVISING…` 꼴로 붙어 있어 통째로 빠져 있었다.
+
 ## 인쇄된 목차를 본문에서 뺀다 (2026-08-17)
 
 앱에는 목차가 이미 왼쪽에 있다. 본문에까지 실리면 같은 것을 두 벌 읽게 되고, 대역 리더에서는 그 목차까지 번역돼 돈이 나간다. `rewired` 는 **p2–p17, 372블록 열여섯 쪽**이 통째로 목차와 도판 목록이었다.

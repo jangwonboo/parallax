@@ -24,7 +24,7 @@ const ORDINAL =
   "one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|" +
   "fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty";
 const LABEL_EN = new RegExp(
-  `^(chapter|part|book|section|appendix)\\s+([0-9]{1,3}|[ivxlcdm]{1,6}|${ORDINAL})[.:]?$`,
+  `^(chapter|part|book|section|appendix|lecture)\\s+([0-9]{1,3}|[ivxlcdm]{1,6}|${ORDINAL})[.:]?$`,
   "i"
 );
 const LABEL_KO = /^제?\s*[0-9]{1,3}\s*[장부편]$/;

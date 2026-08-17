@@ -480,6 +480,27 @@ pagecheck가 삽입·재구성한 블록은 접미사 ID를 갖는다(`b0052a`).
 
 ---
 
+## 정본 여덟 권 — 2026-08-17 현재
+
+`D:\ebook\__output__` 에 책당 `.parallax` + `.book.json`. **여덟 권 모두 `book.json` 이 옆에 있다** — 없던 넷은 `parallax_import.py` 로 되돌려 만들었다(`.parallax` → `book.json` 은 무손실이다).
+
+| 책 | 문체 | 블록 | 번역 | 제목 h1/h2/h3/h4 |
+|---|---|---|---|---|
+| `beyond_weird` | nominal | 1,120 | 1,047 | 21 |
+| `no_self_no_problem` | nominal | 580 | 558 | 18 / 41 |
+| `quantum_mechanics_the_theoretical_minimum` | nominal | 2,143 | 1,299 | 24 / 98 / 35 |
+| `rewired` | business | 4,332 | 3,549 | 47 / 103 / 200 / 304 |
+| `signals` | nominal | 1,718 | 1,686 | 10 / 64 / 224 |
+| `the_human_agent_orchestrator` | business | 2,005 | 1,841 | 21 / 91 / 187 |
+| `the_meaning_of_your_life` | essay | 950 | 931 | 21 / 72 |
+| `the_mind_is_flat` | nominal | 885 | 805 | 8 / 13 / 35 |
+
+**모두 `integrity_check` 통과 · 빈 쪽 0 · 번역문에 마크다운 굵게 0.** 예외 하나: `the_mind_is_flat` p239 는 색인 쪽이라 비운 채 둔다.
+
+계층 깊이가 책마다 다른 것이 **정상**이다. `beyond_weird` 가 평평한 것은 원본 Contents 자체가 번호 없는 에세이 20편이기 때문이고, `rewired` 가 넉 단인 것은 부-장-절-소절을 실제로 쓰기 때문이다.
+
+목차에 아직 남은 잔재 하나 — `rewired` 의 `Library of Congress Cataloging-in-Publication Data is Available:` 이 h2 다. 판권 쪽이 인쇄 목차 **뒤**(p20)라 앞표지 규칙에 안 걸린다. 한 건이라 두었다.
+
 ## 남아 있는 데이터 파일
 
 **정본 여덟 권** — `__output__` 에 책당 한 파일. business 둘(`rewired`·`the_human_agent_orchestrator`), nominal 다섯(`beyond_weird`·`the_mind_is_flat`·`signals`·`quantum_mechanics_the_theoretical_minimum`·`no_self_no_problem`), 뉴닉 하나(`the_meaning_of_your_life`).
@@ -591,6 +612,40 @@ pagecheck가 삽입·재구성한 블록은 접미사 ID를 갖는다(`b0052a`).
 
 `deslop.py` 는 자리가 아니다 — LLM 기반이고 **개조식 책은 통째로 건너뛴다**(그런데 `quantum_mechanics` 25건, `the_meaning_of_your_life` 6건처럼 개조식에도 나온다).
 
+## 장별 주석을 각주로 묶는다 (2026-08-17)
+
+`rewired` 는 장 끝마다 출처를 다는 조판이라 **「Note」가 37개 제목으로 올라와** 있었고 레벨이 **h1·h2·h3 뒤죽박죽**이라 목차 위계를 망가뜨렸다(h1 47 → 25). 주석 본문도 번호마다 문단이 갈려 본문과 같은 무게로 읽혔다.
+
+`fold_chapter_notes()` 가 셋을 함께 고친다 — 제목을 `footnote` 로 내려 **목차에서 빼고**, 뒤따르는 번호 항목을 같은 블록에 「Note: 내용」 꼴로 묶고(여럿이면 줄로 나눈다), 리더가 `footnote` 를 **본문의 0.7배**로 그린다. 실측(렌더러 안에서 잼): 본문 25.33px / 각주 17.73px = **0.700**, 매달린 들여쓰기 −20.4px.
+
+**뒷부속의 「Notes」 표제는 건드리지 않는다** — 목차에 남아야 하는 절이다. 가르는 기준은 **개수**다: 장마다 다는 책은 열 개 넘게 나오고(rewired 37), 뒷부속 표제는 책에 하나뿐이다(나머지 세 권이 각각 1개).
+
+> **리더의 「모든 유형은 같은 글자 크기」 원칙에 예외를 하나 두었다.** 인용문·도판 설명은 그대로 본문 크기이고 각주만 0.7em 이다. `em` 이라 조판 슬라이더를 그대로 따라가고 `--blockgap` 의 `1em` 도 함께 줄어 여백이 글자에 비례한다.
+
+**밟은 것 하나 — `_compact_levels` 가 숨긴 제목까지 세고 있었다.** 인쇄 목차의 「Contents」 표제는 h1 인 채로 감춰지는데 그것이 스택을 차지해 뒤따르는 h2 가 깊이 2 에 머물렀다. 그래서 **앱 목차가 h1 없이 h2 로 시작했다**. 이제 `dropped` 는 건너뛴다 — 여덟 권 모두 첫 항목이 h1 이다.
+
+## 데이터를 고쳐 놓고 코드를 안 고치는 함정 (2026-08-17)
+
+이번 세션의 작업 방식은 「함수를 짜서 임시 스크립트로 정본 여덟 권에 먹인다」였다. 그러다 보니 **정본은 멀쩡한데 파이프라인에는 그 처리가 없는** 상태가 두 번 생겼다 — `merge_label_subtitles` 와 `localize_bare_labels` 는 임시 스크립트로만 돌렸다. 새로 판독하는 책은 그 처리를 못 받는다. 사용자가 「코드 수정 완료된거임?」이라고 물어서야 드러났다.
+
+**정본에 먹인 함수는 반드시 호출부까지 확인할 것.** 확인은 한 줄이다.
+
+```bash
+grep -n "함수이름" scripts/extract.py scripts/pagecheck.py scripts/translate.py
+```
+
+정의만 나오고 호출이 안 나오면 안 걸린 것이다. 지금 걸려 있는 순서:
+
+```
+extract·pagecheck   merge_label_subtitles → canonical_label_headings →
+                    normalize_headings → split_lists_in_blocks → drop_printed_toc
+normalize_headings  demote_printed_toc · _demote_figure_titles · demote_back_matter ·
+                    demote_front_cover · (레벨 판정) · _compact_levels
+translate           strip_invented_bold → localize_bare_labels → split_ko_lists
+```
+
+**순서가 뜻을 가진다.** `canonical_label_headings` 가 `normalize_headings` 앞이어야 한다(붙은 수사를 떼기 전에는 장으로 안 읽힌다). `split_ko_lists` 는 맨 끝이어야 한다(모델에게는 한 줄로 받고, 개조식 종결 교정도 ko 를 한 줄로 되돌린다).
+
 ## 빈 쪽 — 판독이 조용히 빠뜨린 쪽들 (2026-08-17)
 
 **판독은 실패한 쪽을 알려 주지 않는다.** 정본 여덟 권을 훑어 보니 **34쪽이 통째로 비어** 있었다. rewired 는 15쪽(p153·536~543 …), the_mind_is_flat 9쪽, the_human_agent_orchestrator 7쪽, quantum_mechanics 5쪽, the_meaning_of_your_life 2쪽, signals 1쪽. 빈 쪽인가 싶어 원본을 렌더해 보니 **p153 에는 「CHAPTER 8」 제목과 본문 네 문단이 그대로 있었다.**
@@ -692,13 +747,17 @@ missing = [p for p in range(1, max(have) + 1) if p not in have]
 
 > **먼저 볼 것 — 판독은 이미 잘 하고 있다.** 파인만 3권에서 수식·그림 많은 20쪽을 뽑아 재 본 결과(2026-08-16, $0.20): 블록 214(**equation 76** · p 117 · figure 6 · figcaption 6 · footnote 5 · h2 4), **수식 398개 전부 KaTeX 렌더 성공**, 앱에서 katex 노드 474 · **오류 0 · 칸 넘침 0**. `\begin{aligned}` 다단 수식도 그려진다. **모자란 것은 판독이 아니라 그 뒤의 처리**다 — 아래 다섯이 그것이다.
 
-| | 할 일 | 어디가 막혀 있나 |
+| | 할 일 | 상태 |
 |---|---|---|
-| ④ | **표 지원** | 판독은 온전, **리더가 HTML 을 글자로 보여준다** |
-| ② | 별행 수식 번호 | 번호가 LaTeX 안에 섞여 가운데 정렬된다 |
-| ③ | 각주 cross-link | 각주 쪽 마커는 오는데 본문 쪽 위첨자가 없다 |
-| ① | 불릿 목록 묶기 | 항목마다 블록이 갈린다 |
-| ⑤ | 어두운 테마의 그림 | JPEG 라 흰 배경이 박혀 있다 |
+| ④ | 표 지원 | **끝남** — 표를 그림으로 오려 낸다(bbox 크롭 · `asset.wfrac`). 아래 ④ 절의 「리더가 HTML 을 글자로 보여준다」는 그 결정 **이전** 기록이다 |
+| ① | 불릿 목록 | **끝남** — 「목록을 줄로 나눈다」(2026-08-17) |
+| ② | 별행 수식 번호 | 열려 있음 — 번호가 LaTeX 안에 섞여 가운데 정렬된다 |
+| ③ | 각주 cross-link | 열려 있음 — 각주 쪽 마커는 오는데 본문 쪽 위첨자가 없다 |
+| ⑤ | 어두운 테마의 그림 | 열려 있음 — JPEG 라 흰 배경이 박혀 있다 |
+
+**그 밖에 열려 있는 것.** Markdown 내보내기 두 건(사용자가 2026-08-17 에 보류를 지시했다) — ⓐ 내보낸 `.md` 파일명을 원본 PDF 이름이 아니라 `.parallax` 파일명 기준으로, ⓑ 수식 기호를 Typora 에서 그대로 렌더되는 꼴로.
+
+**고칠 대상이 아니라고 판단해 닫은 것들.** `beyond_weird` 의 평평한 목차(원본이 그렇다) · `Notes`·`Bibliography`·`Index` 누락(beyond_weird·the_meaning_of_your_life — 원본 PDF 에 그 쪽이 없다) · `the_mind_is_flat` p239(색인 쪽).
 
 **④ 를 먼저 권한다** — 판독 쪽은 손댈 것이 없고 리더만 고치면 되는데, 지금 증상이 가장 나쁘다(HTML 소스가 본문에 통째로 보인다).
 

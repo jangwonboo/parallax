@@ -378,11 +378,19 @@ body.sel-src .cell.ko, body.sel-ko .cell.src { user-select: none; }
   border-left: 2px solid var(--rule);
   color: var(--ink-soft); text-indent: 0;
 }
-/* 본문 글자 크기는 요소 종류와 무관하게 하나다. 각주·도판 설명·인용문이 저마다
-   다른 크기를 갖던 것을 없앴다 — 구분은 색과 여백으로만 한다. */
+/* 본문 글자 크기는 요소 종류와 무관하게 하나다 — 인용문·도판 설명이 저마다 다른
+   크기를 갖던 것을 없앴고, 구분은 색과 여백으로 한다.
+
+   **각주만 예외다.** 장 끝에 붙는 출처는 본문과 같은 무게로 읽히면 안 된다
+   (rewired 는 장마다 붙어 37곳이다). 0.7em — `em` 이라 조판 슬라이더를 그대로
+   따라가고, 아래 `--blockgap` 의 `1em` 도 함께 줄어 여백이 글자에 비례한다. */
 .cell .footnote, .cell .figcaption {
   color: var(--ink-soft); text-indent: 0;
 }
+.cell .footnote { font-size: .7em; }
+/* 항목이 여럿인 주석은 줄로 나뉘어 온다. 위 `.footnote` 의 `text-indent: 0` 이
+   같은 특이도로 뒤에 와서 목록의 매달린 들여쓰기를 덮으므로 여기서 되살린다. */
+.cell .footnote.list { padding-left: 1.15em; text-indent: -1.15em; }
 
 /* 판독(OCR) 텍스트 표시는 쓰지 않는다. PDF 로 들어온 문서는 모든 블록에 FROM_OCR
    이 붙어 단락마다 세로줄이 그어졌고, 늘 켜져 있는 표시는 정보가 아니라 잡음이었다.

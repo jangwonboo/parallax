@@ -482,9 +482,34 @@ pagecheck가 삽입·재구성한 블록은 접미사 ID를 갖는다(`b0052a`).
 
 ## 남아 있는 데이터 파일
 
+**정본 여덟 권** — `__output__` 에 책당 한 파일. business 둘(`rewired`·`the_human_agent_orchestrator`), nominal 다섯(`beyond_weird`·`the_mind_is_flat`·`signals`·`quantum_mechanics_the_theoretical_minimum`·`no_self_no_problem`), 뉴닉 하나(`the_meaning_of_your_life`).
+
 **개조식 판본 셋** — `the_mind_is_flat.nominal.parallax`(2026-08-12 오전, 875블록 · 번역 816) · `beyond_weird.nominal.parallax`(같은 날 오후, 1,120블록 · 번역 1,072) · `signals.nominal.parallax`(2026-08-15 저녁, 1,717블록 · 번역 1,715). 각각 뉴닉 판본과 **같은 원문·같은 용어집**에서 갈라져 나왔고 뉴닉 판본은 그대로 있다. 백업은 `*.nominal.book.json`.
 
 > 2026-08-15 에 `__output__` 이 정리돼 **책당 한 파일**만 남아 있다(뉴닉 중복본 삭제). `the_meaning_of_your_life.parallax` 는 아직 뉴닉이고, 사용자가 이번에는 signals 만 지시했다.
+
+**2026-08-17 에 네 권을 한꺼번에 끝냈다** — 표를 그림으로 오려 내는 새 경로의 첫 실전이다. 넷 다 순수 스캔본이라 전 쪽 판독이 필요했다.
+
+| 책 | 문체 | 블록 | 번역 | 특징 |
+|---|---|---|---|---|
+| `rewired` | business | 4,258 | 3,855 | 표 39 · 그림 148 |
+| `the_human_agent_orchestrator` | business | 1,996 | 1,854 | **표 47** · 그림 84 |
+| `quantum_mechanics_the_theoretical_minimum` | nominal | 2,137 | 1,311 | **수식 792** · 인라인 606단락 |
+| `no_self_no_problem` | nominal | 580 | 569 | 그림 9 |
+
+**넷 다 `누락 0`.** 지출은 판독 $13.79 + 번역 약 $22 = **약 $36**(1,471쪽).
+
+- **수식이 번역을 온전히 통과한다.** `equation` 792개는 전부 `ko` 가 비어 있고(NO_TRANSLATE 정상), 번역문에 남은 수식 조각 **3,219개가 KaTeX 로 100% 렌더**된다. 진짜 빠진 것은 606단락 중 13곳(2.1%)뿐이고 `$j$`·`$\lambda^*$` 같은 홑기호 반복이다 — 한국어가 「λ의 켤레」로 풀어 쓰면 자연히 하나 준다.
+- **수식 검사에서 두 번 오탐을 냈다.** 처음에 **개수**만 세어 19단락이 빠진 것으로 나왔는데, 전문을 보니 `\langle A | \mathbf{M}` → `\langle A|\mathbf{M}` 처럼 **공백만 다른** 것이었다. 번역 모델은 LaTeX 안의 공백을 정규화한다 — **수식을 대조할 때는 공백을 지우고 비교할 것.**
+- **비즈니스체는 길이 비율을 세게 낮춘다.** rewired 의 「길이 이상」 9건이 전부 정상이었다(0.31~0.35, 책 평균 0.50). 한자어 우선·대명사 생략이 겹친 결과다 — nominal 에서 하한에 닿는 것과 같은 이유이니 **business 도 길이 경고를 그대로 믿지 말 것.**
+- 「한글 없음」은 각주 인용·URL(`McKinsey.com/RewiredAssessment`)·색인 항목이라 무해하다.
+- rewired `b2550` 은 360→361쪽 넘김에서 원문이 `such as base vs.` 로 갈린 자리다 — 번역이 그 경계를 따라갔을 뿐 **판독 단계의 이음매 문제**다.
+
+> **밟은 것 넷.**
+> ① **Anthropic 사용량 한도에 걸렸다**(`400 … regain access on 2026-09-01`). 재시도로 풀리지 않는 영구 오류인데 바깥 루프가 일시 실패로 보고 30초마다 헛돌았다. 지금은 `books-translate.sh` 가 한도 문구를 만나면 **즉시 멈춘다.** 한도는 콘솔에서 올려야 풀린다.
+> ② **`verify.py` 는 경고가 남으면 비-0 을 돌려준다.** 재시도 래퍼로 감싸면 16번 헛돈다 — verify 는 감싸지 말 것(경고 판단은 사람이 한다).
+> ③ **판독과 번역을 겹쳐 돌릴 때는 서비스가 갈려야 한다.** Datalab(판독)과 Anthropic(번역)은 무관하지만, 한 권을 「판독→번역」 통째로 도는 스크립트를 병렬로 걸면 짧은 책이 먼저 번역에 닿아 **같은 Anthropic 을 둘이 두드린다.** 판독 전용(`books-read.sh`)과 번역 전용(`books-translate.sh`)으로 갈랐다.
+> ④ **`kill` 범위를 잘못 잡아 돌던 번역까지 죽였다.** 캐시 덕에 손실은 없었지만, 프로세스를 세울 때는 PID 를 하나씩 확인할 것.
 
 **다섯 번째 — 《Rewired》(662쪽 순수 스캔본, 표가 많다)** 를 2026-08-16 에 걸었다. 문체는 **비즈니스(`--register business`, `-다` 평서형 — `--polite` 는 쓰지 않는다)**. 표를 그림으로 오려 내는 새 경로를 처음으로 전권에 태우는 실전이다.
 

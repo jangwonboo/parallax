@@ -28,6 +28,19 @@ const LABEL_EN = new RegExp(
   "i"
 );
 const LABEL_KO = /^제?\s*[0-9]{1,3}\s*[장부편]$/;
+/** 접두어 없이 수사만 선 제목 — 「ONE」·「TWO」·「7」·「IV」.
+ *
+ *  본문 조판에서 「CHAPTER」를 빼고 서수만 큼직하게 얹는 책이 흔하다(실측:
+ *  no_self_no_problem 은 본문이 「ONE」과 「Meet the Interpreter—An Accidental
+ *  Discovery」 두 블록인데 인쇄 목차에는 「Chapter One Meet the Interpreter…」
+ *  한 줄이다). 접두어를 요구하면 이런 책의 장 제목이 목차에서 둘로 갈린다.
+ *
+ *  숫자만 본다 — 「INTRODUCTION」 같은 맨 낱말은 여기 넣지 않는다. 뒤따르는
+ *  것이 그 부의 제목인지 첫 절인지 데이터로 구분되지 않기 때문이다. */
+const LABEL_BARE = new RegExp(
+  `^(?:[0-9]{1,3}|[ivxlcdm]{1,6}|${ORDINAL})[.:]?$`,
+  "i"
+);
 
 /** 「CHAPTER 1」·「PART ONE」·「제3장」처럼 **수사뿐**인 제목인가.
  *
@@ -40,7 +53,7 @@ const LABEL_KO = /^제?\s*[0-9]{1,3}\s*[장부편]$/;
  *  보인다). 잘못 합치면 절 하나가 목차에서 사라진다. */
 export function isNumberedLabel(text: string): boolean {
   const t = text.trim();
-  return LABEL_EN.test(t) || LABEL_KO.test(t);
+  return LABEL_EN.test(t) || LABEL_KO.test(t) || LABEL_BARE.test(t);
 }
 
 /**

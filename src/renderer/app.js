@@ -186,6 +186,12 @@ const MATH_BARE = (s) =>
 
 /** 문자열을 el 에 넣는다. 수식이 섞여 있으면 그 조각만 KaTeX 로 그린다. */
 function setTextWithMath(el, text) {
+  /* 목록은 블록 하나에 담긴 채 줄로만 나뉘어 온다(`split_inline_lists`).
+     HTML 은 줄바꿈을 접으므로 표시해 두고 CSS 로 살린다 — 항목마다 블록을
+     쪼개면 원문·번역이 항목 단위로 짝지어지는데, 번역이 항목 수를 그대로
+     지킨다는 보장이 없다. */
+  if (text && text.includes("\n")) el.classList.add("list");
+
   if (!text || !text.includes("$")) { el.textContent = text || ""; return; }
 
   const parts = String(text).split(MATH_SPLIT);

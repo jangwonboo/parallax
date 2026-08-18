@@ -624,6 +624,50 @@ pagecheck가 삽입·재구성한 블록은 접미사 ID를 갖는다(`b0052a`).
 
 **밟은 것 하나 — `_compact_levels` 가 숨긴 제목까지 세고 있었다.** 인쇄 목차의 「Contents」 표제는 h1 인 채로 감춰지는데 그것이 스택을 차지해 뒤따르는 h2 가 깊이 2 에 머물렀다. 그래서 **앱 목차가 h1 없이 h2 로 시작했다**. 이제 `dropped` 는 건너뛴다 — 여덟 권 모두 첫 항목이 h1 이다.
 
+## 배경 작업은 껍데기가 죽어도 본체가 산다 (2026-08-18)
+
+비즈니스체 번역을 돌리다 세션이 끊겼다. 하니스 알림은 「중단」이라고 했지만 **`translate.py` 프로세스는 계속 돌고 있었다** — 45초에 1 chunk 씩 진행하는 것을 실측으로 확인했다. 그 상태에서 재실행했다면 같은 `book.json` 을 둘이 쓰며 서로의 결과를 덮었을 것이다.
+
+**재실행 전에 PID 를 확인한다.** 명령줄까지 봐야 무관한 python 과 구분된다.
+
+```powershell
+Get-CimInstance Win32_Process -Filter "Name='python.exe'" |
+  Where-Object { $_.CommandLine -match 'translate\.py|deslop\.py|export\.py' }
+```
+
+**중단에는 순서가 있다. 감시 스크립트(부모)를 먼저, 파이프라인(자식)을 나중에.** 자식만 종료하면 부모의 재시도 loop 가 곧바로 다시 spawn 한다. 실제로 이 순서를 어겨 `translate.py` 두 개가 **6초 간격으로** 떴다(18:37:52, 18:37:58). 하니스의 `TaskStop` 은 자기가 추적하는 셸만 종료하고 **떨어져 나간 bash 자식은 살려 둔다** — `run.sh`·`resume.sh`·`chain.sh` 셋이 각각 살아 있었다.
+
+**그래도 데이터는 무사했다.** `_llm.save_book()` 이 `.tmp` 에 쓰고 `replace()` 하는 원자적 쓰기라, 어느 시점에 종료해도 `book.json` 은 직전 chunk 상태로 온전히 남는다. 두 프로세스가 겹쳐 돌아도 최악이 「같은 chunk 를 두 번 결제」였다. 중단 후 확인: 블록 수 그대로, **중복 ID 0**, 원문 없는 번역 0, `.tmp` 잔재 없음. (`/F` 를 피하라는 이 저장소의 경고는 **Electron 앱의 설정 파일**에 대한 것이지 이 파이프라인이 아니다.)
+
+**재실행 경로는 하나만 남긴다.** 감시 스크립트를 여러 개 두면 어느 것이 살아 있는지 알 수 없다. 옛 것을 삭제하고 `go.sh` 하나로 정리했다.
+
+### 중복 실행 guard 를 만들며 두 번 실패했다
+
+**명령줄 문자열로 셸을 식별하려 하지 마라.** 처음에는 감시용 bash 를 이름으로 찾으려고 패턴에 `go\.sh` 를 넣었는데, **스크립트 자신의 bash 가 self-match 해서 실행 자체가 차단됐다.** 그것을 빼도 여전히 오탐이 났다 — 그 이름을 문자열로 품은 아무 셸이나(guard 를 호출하는 셸 자신을 포함해) 매칭된다.
+
+결론은 **python 명령줄만 본다**는 것이다. `Name='python.exe'` 로 먼저 거르므로 그 이름을 언급하는 셸은 걸리지 않는다. 세 경우로 시험했다 — 아무것도 없을 때 통과, 무관한 python 이 돌 때 통과, 파이프라인 python 이 돌 때 발동.
+
+### `translate.py` 의 재개는 캐시가 아니라 재-chunking 이다
+
+재실행 비용을 「캐시 적중」으로 설명하면 틀린다. `translate.py` 는 재실행 때 **아직 비어 있는 블록만 골라 chunk 를 다시 구성한다**(`if not args.force: blocks = [b for b in blocks if not (b.get("ko") or "").strip()]`). 이미 채워진 블록은 요청에 실리지 않으므로 재결제가 없다.
+
+대신 **chunk 경계가 달라져 기존 캐시는 무효**가 된다. 남겨도 해는 없지만 적중하지도 않는다.
+
+재실행이 실제로 보낼 양은 API 호출 없이 `L.translatable` + `L.chunk_blocks` 로 그대로 재현해 미리 계산할 수 있다. 이번에 그렇게 재서 mfbiz 238블록/29chunk/$1.34, sigbiz 1,716블록/110chunk/$4.38 을 얻었다.
+
+### 중단 시점의 상태
+
+`the_mind_is_flat` 와 `signals` 의 **비즈니스체 판본**을 만드는 중이었다. 개조식 판본과 같은 원문·같은 glossary 에서 갈라져 나오도록 `book.json` 의 `ko`·`ko_raw` 만 비우고 `meta.register` 를 바꾸는 방식이다(개조식 판본 셋을 만들 때 쓴 절차와 같다).
+
+| 작업 폴더 | 책 | 번역 | 남은 것 |
+|---|---|---|---|
+| `scratchpad/mfbiz` | the_mind_is_flat | 588 / 826 (71%) | translate 잔여 → deslop → verify → export |
+| `scratchpad/sigbiz` | signals | 0 / 1,716 | 전부 |
+
+산출물은 기존 개조식 판본을 그대로 두고 `<책>.business.parallax` 로 나란히 둔다(사용자 지시). 이어받기 문서와 스크립트는 `scratchpad/RESUME-비즈니스체-번역.md` 와 `scratchpad/go.sh`.
+
+> **`export.py` 는 md 를 내지 않는다**(앱으로 옮긴 기능이다). `scratchpad/mfbiz/to_md.py` 를 만들어 두었다 — 앱의 `renderMarkdown()` 을 그대로 옮긴 것이라 머리글이 리더 목차와 어긋나지 않는다. 영문으로 돌려 검증했고, 머리글이 68→54로 준 것은 회귀가 아니라 이번 세션의 목차 교정이 반영된 결과다.
+
 ## Datalab API 가 실제로 무엇을 주는가 (2026-08-17, 실측)
 
 지금까지 `output_format=chunks` 하나만 써 왔다. **API 에 직접 물어** 무엇이 더 있는지 확인했다(잘못된 값을 보내면 검증 오류로 허용 목록을 돌려주고, 그건 무료다).

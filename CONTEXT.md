@@ -480,26 +480,40 @@ pagecheck가 삽입·재구성한 블록은 접미사 ID를 갖는다(`b0052a`).
 
 ---
 
-## 정본 여덟 권 — 2026-08-17 현재
+## 정본 일곱 권 — 2026-08-19 현재
 
-`D:\ebook\__output__` 에 책당 `.parallax` + `.book.json`. **여덟 권 모두 `book.json` 이 옆에 있다** — 없던 넷은 `parallax_import.py` 로 되돌려 만들었다(`.parallax` → `book.json` 은 무손실이다).
+`D:\ebook\__output__` 에 **책당 `.parallax` 한 파일뿐이다.** `.book.json` · `.ko.md` ·
+stale `-wal`/`-shm` 은 2026-08-19 에 사용자가 지웠다. 개조식 판본도 함께 정리돼
+남은 일곱 권은 전부 `-다` 평서형(essay 또는 business)이다.
 
-| 책 | 문체 | 블록 | 번역 | 제목 h1/h2/h3/h4 |
-|---|---|---|---|---|
-| `beyond_weird` | nominal | 1,120 | 1,047 | 21 |
-| `no_self_no_problem` | nominal | 580 | 558 | 18 / 41 |
-| `quantum_mechanics_the_theoretical_minimum` | nominal | 2,143 | 1,299 | 24 / 98 / 35 |
-| `rewired` | business | 4,332 | 3,549 | 47 / 103 / 200 / 304 |
-| `signals` | nominal | 1,718 | 1,686 | 10 / 64 / 224 |
-| `the_human_agent_orchestrator` | business | 2,005 | 1,841 | 21 / 91 / 187 |
-| `the_meaning_of_your_life` | essay | 950 | 931 | 21 / 72 |
-| `the_mind_is_flat` | nominal | 885 | 805 | 8 / 13 / 35 |
+| 책 | 문체 | 블록 | 번역 | 용어 | h1/h2/h3/h4 |
+|---|---|---:|---:|---:|---|
+| `beyond_weird` | essay | 1,120 | 1,047 | 90 | 21 |
+| `no_self_no_problem` | essay | 580 | 550 | 57 | 10 / 41 |
+| `quantum_mechanics_the_theoretical_minimum` | essay | 2,143 | 1,289 | 48 | 14 / 98 / 35 |
+| `rewired` | business | 4,332 | 3,473 | 74 | 27 / 58 / 190 / 304 |
+| `signals` | business | 1,718 | 1,663 | 84 | 7 / 44 / 224 |
+| `the_human_agent_orchestrator` | business | 2,017 | 1,830 | 0 | 14 / 98 / 179 |
+| `the_mind_is_flat` | business | 885 | 803 | 66 | 6 / 13 / 35 |
 
-**모두 `integrity_check` 통과 · 빈 쪽 0 · 번역문에 마크다운 굵게 0.** 예외 하나: `the_mind_is_flat` p239 는 색인 쪽이라 비운 채 둔다.
+일곱 권 모두 `integrity_check` 통과. 문체는 종결로 실측했다(`-다` 로 끝나는 문장이
+압도적이고 명사형 종결은 0~5). `.parallax` 스키마에 문체 칸이 없어서 파일만 보고는
+알 수 없다.
 
-계층 깊이가 책마다 다른 것이 **정상**이다. `beyond_weird` 가 평평한 것은 원본 Contents 자체가 번호 없는 에세이 20편이기 때문이고, `rewired` 가 넉 단인 것은 부-장-절-소절을 실제로 쓰기 때문이다.
+**`the_meaning_of_your_life.parallax` 가 이번 정리에서 함께 지워졌다.** 950블록 ·
+번역 950 · essay 로 온전하던 것이라 의도한 삭제가 아닌 듯하다. 휴지통에 있다.
 
-목차에 아직 남은 잔재 하나 — `rewired` 의 `Library of Congress Cataloging-in-Publication Data is Available:` 이 h2 다. 판권 쪽이 인쇄 목차 **뒤**(p20)라 앞표지 규칙에 안 걸린다. 한 건이라 두었다.
+**개조식 세 권은 `.book.json` 에만 있던 유일본이었다**(`quantum_mechanics` ·
+`signals` · `the_mind_is_flat`). `.parallax` 짝이 없어 함께 사라졌다. 역시 휴지통에
+있다. 되살리려면 `export.py` 로 `.parallax` 를 뽑아야 앱에서 열린다.
+
+계층 깊이가 책마다 다른 것이 **정상**이다. `beyond_weird` 가 평평한 것은 원본
+Contents 자체가 번호 없는 에세이 20편이기 때문이고, `rewired` 가 넉 단인 것은
+부-장-절-소절을 실제로 쓰기 때문이다.
+
+목차에 아직 남은 잔재 하나가 있다. `rewired` 의 `Library of Congress
+Cataloging-in-Publication Data is Available:` 이 h2 다. 판권 쪽이 인쇄 목차 **뒤**
+(p20)라 앞표지 규칙에 안 걸린다. 한 건이라 두었다.
 
 ## 남아 있는 데이터 파일
 
@@ -849,6 +863,117 @@ missing = [p for p in range(1, max(have) + 1) if p not in have]
 
 여덟 권에 돌려 `no_self_no_problem` 만 바뀌었다(수사 8개 → `ONE · Meet the Interpreter—An Accidental Discovery`). 나머지 일곱 권은 한 블록도 안 움직였다.
 
+## 장 제목이 제 소제목을 데려간다 (2026-08-19)
+
+사용자가 `the_human_agent_orchestrator` 에서 짚었다. 「The Question That Stopped
+the Room」이 「CHAPTER 2 · THE LAST GENERATION」과 형제로 서 있었다.
+
+범인은 `normalize_headings` 끝의 **부제 흡수** 규칙이다. 수사 표제 다음 제목을
+부제로 보고 같은 단으로 끌어올리는데, 조건이 `CHAPTER_MARK_RE` 였다. 이 규칙은
+「PART ONE」 / 「The Illusion of Mental Depth」처럼 **수사만 서고 제목이 다음
+줄에 있는** 조판을 위한 것이다. 「CHAPTER 2 · THE LAST GENERATION」은 이미 제
+제목을 가졌으므로 뒤따르는 것은 부제가 아니라 소제목이다.
+
+조건을 `_is_bare_label()` 로 좁혔다. 수사 뒤에 글이 붙어 있으면 흡수하지 않는다.
+열두 판본 회귀 검사에서 **이 한 블록만** 바뀌었다.
+
+### 곁가지에서 더 큰 것이 나왔다
+
+그 자리를 들여다보다 h2 104개 중 **85개가 인쇄 목차에 없다**는 것을 봤다.
+그중에 이런 짝이 있었다.
+
+```
+h2  CHAPTER 1
+h2  THE PROMOTION NOBODY ASKED FOR
+```
+
+장 하나가 목차 두 줄을 먹고 첫 줄은 뜻이 없다. 두 블록 병합(`merge_label_subtitles`)이
+그동안 `INTRODUCTION` 같은 **낱말 수사**에만 걸려 있었기 때문이다. 번호 수사에도
+같은 근거를 적용했다. 뒤따르는 글이 인쇄 목차에 실려 있을 때만 합친다.
+
+| 책 | 병합 |
+|---|---:|
+| `rewired` | 38 |
+| `signals` | 23 |
+| `quantum_mechanics` | 10 |
+| `the_meaning_of_your_life` | 9 |
+| `no_self_no_problem` | 8 |
+| `the_human_agent_orchestrator` | 5 |
+| `the_mind_is_flat` | 2 |
+
+### 병합이 부른 퇴행 두 건
+
+**합치고 나면 정답지가 그 제목을 못 알아본다.** 「CHAPTER 1 · The Meaning of
+Meaning」은 통짜로는 목차에 없다. 인쇄 목차가 수사를 빼고 제목만 싣기 때문이다.
+그래서 멀쩡한 장이 「목차에 없는 것」으로 몰려 두 단 아래로 떨어졌다(`no_self` 의
+장 열여섯, `the_mind_is_flat` 의 PART ONE/TWO).
+
+고친 것 둘이다.
+
+- 정답지와 맞댈 때 **수사를 뗀 열쇠도 함께** 본다(`keys` 집합).
+- 부(部)는 목차가 보증하는 한 언제나 h1 이다. 부제를 합쳐 두면 그 부제가 목차에서
+  하위 항목으로 실려 있어 `sub_keys` 갈래에 먼저 걸린다.
+
+> **규칙을 넣었는데 회귀 검사에서 「변화 0」이 나오면 규칙이 안 걸린 것부터
+> 의심할 것.** 앞선 세션에서 정규식의 `\b` 가 삽입 과정에 백스페이스 문자로
+> 치환돼 패턴이 영원히 매칭되지 않은 적이 있다. `repr(pattern)` 으로 확인한다.
+
+> **여러 줄 문자열을 heredoc 으로 넘길 때 한글·특수문자 앵커를 쓰지 말 것.**
+> `strip(" .:·—–-")` 를 앵커로 잡았다가 인코딩 때문에 매칭에 실패했다.
+> 앵커는 ASCII 로 잡고 `PYTHONUTF8=1` 을 준다.
+
+여덟 판본을 다시 출력했다. 블록 수·번역 수·용어집·그림·`title_ko` 전부 그대로이고
+번역은 손대지 않았다. 목차 두 줄짜리 장이 사라져 h2 가 `rewired` 96→58,
+`signals` 64→44, `the_human_agent_orchestrator` 104→98 로 줄었다.
+
+`beyond_weird` 는 h1 스물하나뿐인 평평한 목차인데 인쇄 목차가 거둬지지 않아서다.
+이번 규칙으로는 닿지 않는다. **따로 봐야 한다.**
+
+## `.parallax` 는 문체를 기억하지 못한다 (2026-08-19, 실측)
+
+`.book.json` 을 지워도 되는지 판단하려고 왕복시켜 봤다.
+`signals.business.parallax` → `parallax_import.py` → 원본 `book.json` 과 대조.
+
+```
+최상위 키    차이 없음 (assets · blocks · meta · page_check · superseded)
+블록 필드    차이 없음
+블록 1,718   id 차이 0 · src/ko/ko_raw/type/page 불일치 0
+용어집       68 + 원문유지 16 함께 복원
+```
+
+**딱 한 군데가 어긋난다.**
+
+```
+meta.register   원본 business  →  복원 essay
+```
+
+`.parallax` 스키마에 문체 칸이 없어서 `parallax_import.py:62` 가 `"essay"` 를
+박아 넣는다. **틀린 값이 빈 값보다 나쁘다.** `deslop.py:105` 가 그 값을 그대로
+믿기 때문이다.
+
+```python
+register = book["meta"].get("register") or "essay"
+if register in NO_DESLOP and not args.strength:   # NO_DESLOP = {"nominal"}
+    ... 건너뛴다
+strength = args.strength or STRENGTH.get(register, "중")
+```
+
+개조식은 deslop 을 **일부러** 태우지 않는다. 규칙표가 전부 `-다` 서술문을 전제로
+쓰여 있어 명사형 종결을 번역투로 읽고 문장을 서술형으로 되돌리기 때문이다.
+복원본은 `essay` 라 적혀 있으니 이 방어가 작동하지 않는다. 개조식 한 권이 통째로
+서술형으로 되돌아가고, deslop 은 공짜도 아니다(`the_mind_is_flat` 한 권에 $5.54).
+
+**아직 안 고쳤다.** 두 갈래가 있다.
+
+- **파일명에서 읽는다** — 코드 몇 줄이고 스키마를 안 건드린다. 다만 접미사 없는
+  `no_self_no_problem.parallax` 가 실제로는 무슨 문체인지 알 길이 없다.
+- **`doc` 테이블에 컬럼을 더한다**(권함) — 파일명과 무관하게 정확하다. 스키마가
+  세 군데(`pdf2parallax/_parallax.py` · 앱 `src/main/db.ts` · `spec.md`)에 적혀
+  있어 전부 고쳐야 하고, 컬럼이 없는 기존 파일도 열려야 한다.
+
+`.parallax` 를 정본으로 삼기로 한 이상 정본이 제 문체를 알아야 한다.
+
+
 ## 열려 있는 것
 
 ### 새로 들어온 것 (2026-08-17 사용자 지시)
@@ -856,6 +981,16 @@ missing = [p for p in range(1, max(have) + 1) if p not in have]
 - ~~**목차 쪽을 본문에서 뺀다.**~~ — 위 「인쇄된 목차를 본문에서 뺀다」에서 끝냈다.
 - ~~**불릿/번호 목록 렌더링**~~ — 위 「목록을 줄로 나눈다」에서 끝냈다(아래 ① 이 그것이다).
 - ~~**장별 주석을 각주로**~~ — 위 「장별 주석을 각주로 묶는다」에서 끝냈다.
+
+### 새로 들어온 것 (2026-08-19)
+
+- **`.parallax` 에 문체를 담는다.** `doc` 테이블에 `register` 컬럼을 더한다. 위
+  「`.parallax` 는 문체를 기억하지 못한다」참조. `.book.json` 을 다 지운 지금은
+  `.parallax` 가 유일한 정본이므로 이것이 앞선다.
+- **`the_meaning_of_your_life` 와 개조식 세 권을 휴지통에서 되살릴지 결정한다.**
+  되살린다면 `.book.json` 셋은 `export.py` 로 `.parallax` 를 뽑아야 앱에서 열린다.
+- **`beyond_weird` 의 평평한 목차.** 인쇄 목차가 거둬지지 않아 h1 스물하나뿐이다.
+  `harvest_printed_toc` 가 왜 빈손인지부터 봐야 한다.
 
 ### 조사만 해 둔 것 — 착수 전 (2026-08-17)
 

@@ -1086,6 +1086,29 @@ doc.addEventListener("mouseleave", clearMate);
    스크롤이라 행은 스크롤할 때마다 지워졌다 다시 만들어진다 — DOM 에 칠해 두면
    스크롤 한 번에 사라진다. 칠은 늘 데이터에서 다시 그린다. */
 
+/* 아이콘은 인라인 SVG 다. 이모지(🗑)는 OS 가 제 색으로 그려서 테마를 따라오지
+   못하고 크기도 서체마다 다르다. SVG 는 currentColor 를 받는다. */
+const ICON = {
+  trash: "M3 5h10M6.5 5V3.5h3V5M4.5 5l.6 8.5h5.8L11.5 5M6.6 7.3v4M9.4 7.3v4",
+  export: "M8 2.5v7.5M5 7l3 3 3-3M3 12.5h10",
+};
+function icon(name) {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 16 16");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("focusable", "false");
+  const path = document.createElementNS(ns, "path");
+  path.setAttribute("d", ICON[name]);
+  path.setAttribute("fill", "none");
+  path.setAttribute("stroke", "currentColor");
+  path.setAttribute("stroke-width", "1.3");
+  path.setAttribute("stroke-linecap", "round");
+  path.setAttribute("stroke-linejoin", "round");
+  svg.appendChild(path);
+  return svg;
+}
+
 const HL_NAME = "parallax-hl";
 let hlRows = [];                 // DB 의 조각들(ord 순)
 let hlGroups = [];               // 화면 목록 — 조각을 groupId 로 묶은 것
@@ -1268,6 +1291,9 @@ const hlPick = document.getElementById("hlPick");
 const hlBulk = document.getElementById("hlBulk");
 const hlDelBtn = document.getElementById("hlDelBtn");
 const hlAllBtn = document.getElementById("hlAllBtn");
+const hlExpBtn = document.getElementById("hlExpBtn");
+hlDelBtn.appendChild(icon("trash"));
+hlExpBtn.appendChild(icon("export"));
 
 let hlPicking = false;               // 선택 모드인가
 const hlChecked = new Set();
@@ -1291,7 +1317,6 @@ function setHlPicking(on) {
   renderHlPane();
 }
 
-const SIDE_LABEL = { src: "원문", ko: "번역" };
 
 function renderHlPane() {
   hlCount.textContent = hlGroups.length ? String(hlGroups.length) : "";
@@ -1330,13 +1355,13 @@ function renderHlPane() {
     const main = document.createElement("button");
     main.className = "hl-main";
     main.type = "button";
-    const head = document.createElement("span");
-    head.className = "hl-head";
-    head.textContent = SIDE_LABEL[g.side] + (g.page ? `  p.${g.page}` : "");
+    /* 「원문 p.7」 같은 위치줄은 달지 않는다. 항목마다 한 줄씩 먹는데,
+       어느 쪽 글인지는 서체(영문·한글)가 이미 말해 준다. */
     const body = document.createElement("span");
     body.className = "hl-text";
+    body.dataset.side = g.side;      // 본문과 같은 서체를 고르는 근거
     body.textContent = g.parts.join(" … ");
-    main.append(head, body);
+    main.append(body);
     if (g.stale) {
       const warn = document.createElement("span");
       warn.className = "hl-warn";
@@ -1365,7 +1390,7 @@ function renderHlPane() {
       del.type = "button";
       del.title = "이 형광펜 지우기";
       del.setAttribute("aria-label", "지우기");
-      del.textContent = "🗑";
+      del.appendChild(icon("trash"));
       del.addEventListener("click", (e) => {
         e.stopPropagation();
         removeHighlights([g.groupId]);
@@ -1380,7 +1405,11 @@ function renderHlPane() {
 function syncBulk() {
   const n = hlChecked.size;
   hlDelBtn.disabled = !n;
-  hlDelBtn.textContent = n ? `${n}개 삭제` : "삭제";
+  hlExpBtn.disabled = !n;
+  /* 개수는 아이콘 옆 글자가 아니라 툴팁으로 — 아이콘 버튼의 폭이 고른 수에
+     따라 들썩이면 손이 겨눈 자리가 자꾸 달라진다. */
+  hlDelBtn.title = n ? `고른 ${n}개 지우기` : "고른 것 지우기";
+  hlExpBtn.title = n ? `고른 ${n}개 내보내기` : "고른 것을 파일로 내보내기";
   hlAllBtn.textContent = n === hlGroups.length && n > 0 ? "모두 해제" : "모두";
 }
 
@@ -1395,6 +1424,12 @@ hlAllBtn.addEventListener("click", () => {
 hlDelBtn.addEventListener("click", async () => {
   await removeHighlights([...hlChecked]);
   setHlPicking(false);
+});
+hlExpBtn.addEventListener("click", async () => {
+  /* 내보낸 뒤 선택 모드를 풀지 않는다 — 삭제와 달리 목록이 그대로 남으므로,
+     같은 것을 다른 형식으로 한 번 더 내보내려던 손이 처음부터 다시 고르게 된다. */
+  const r = await api.highlight.export([...hlChecked]);
+  if (r?.error) alert(r.error);
 });
 
 

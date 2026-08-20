@@ -72,15 +72,19 @@
      같은 화면에 있으면 무엇이 지워지는지 답이 없다). -->
 <aside class="hlpane" id="hlPane" data-open="false" data-picking="false"
        aria-label="형광펜">
+  <!-- 제목을 달지 않는다. 툴바의 「형광펜」을 눌러 연 패널이라 무엇인지 이미
+       알고, 좁은 칸에서는 한 줄이 아깝다. -->
   <div class="head">
-    <h2>형광펜</h2>
     <button id="hlPick" type="button" class="ghost">선택</button>
     <button id="hlClose" type="button" aria-label="닫기">✕</button>
   </div>
   <div class="list" id="hlList"></div>
   <div class="bulk" id="hlBulk" hidden>
     <button id="hlAllBtn" type="button" class="ghost">모두</button>
-    <button id="hlDelBtn" type="button" class="danger" disabled>삭제</button>
+    <button id="hlExpBtn" type="button" class="icon" disabled
+            title="고른 것을 파일로 내보내기" aria-label="내보내기"></button>
+    <button id="hlDelBtn" type="button" class="icon danger" disabled
+            title="고른 것 지우기" aria-label="지우기"></button>
   </div>
 </aside>
 
@@ -124,7 +128,7 @@
       <ul>
         <li>원문과 번역은 <b>서로를 모른다</b>. 한쪽에 칠해도 반대쪽은 그대로다 — 낱말이 어디에 대응하는지 알 방법이 없기 때문이다. 두 쪽 다 칠하려면 두 번 긋는다.</li>
         <li>목록 항목을 누르면 <b>그 자리로 간다</b>. 오른쪽 <b>🗑</b> 로 하나씩 지운다.</li>
-        <li>여러 개를 한 번에 지우려면 <b>선택</b> 을 누른다. 체크한 것만 지워진다.</li>
+        <li>여러 개를 한 번에 다루려면 <b>선택</b> 을 누른다. 체크한 것만 지우거나(휴지통) <b>Markdown 파일로 내보낸다</b>(내려받기).</li>
         <li>이미 칠한 자리에 <b>겹쳐 그으면 하나로 합쳐진다</b>. 칠 하나에 목록 한 줄이 늘 맞물린다.</li>
         <li>번역을 다시 돌려 칠할 자리가 사라지면 목록에 <b>「번역이 바뀌었습니다」</b> 로 남는다. 지우지는 않는다.</li>
         <li>형광펜은 <code>.parallax</code> 안에 들어간다 — 파일을 옮기면 따라간다.</li>

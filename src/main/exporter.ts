@@ -3,6 +3,32 @@ import { MERGE_SEP, isOverlongHeading, mergesWithNext } from "../shared/headings
 
 const HEAD_LEVEL: Record<string, number | undefined> = { h1: 1, h2: 2, h3: 3 };
 
+/**
+ * 고른 형광펜을 Markdown 한 덩이로. 순수 함수라 파일·대화상자와 무관하다.
+ *
+ * 조각을 groupId 로 다시 묶는다. 한 번 그은 것이 여러 단락에 걸쳤어도 파일에는
+ * 한 항목이어야 한다 — 화면 목록과 같은 단위다. 순서는 넘겨받은 순서를 지킨다
+ * (Doc.highlights() 가 이미 ord 순으로 준다).
+ */
+export function renderHighlightMarkdown(
+  rows: { groupId: string; page: number | null; text: string }[],
+  title: string
+): string {
+  const seen = new Map<string, { page: number | null; parts: string[] }>();
+  for (const h of rows) {
+    if (!seen.has(h.groupId)) seen.set(h.groupId, { page: h.page, parts: [] });
+    seen.get(h.groupId)!.parts.push(h.text);
+  }
+  const items = [...seen.values()].map((g) => {
+    /* 줄바꿈을 접는다 — 블록 안에서 줄로만 나뉜 목록이 그대로 오면 불릿 하나가
+       여러 줄로 흩어져 어디까지가 한 형광펜인지 안 보인다. */
+    const body = g.parts.join(" … ").replace(/\s+/g, " ").trim();
+    return `- ${body}${g.page ? ` (p.${g.page})` : ""}`;
+  });
+  return [`# ${title} — 형광펜`, "", `${seen.size}개`, "", ...items, ""]
+    .join("\n");
+}
+
 /* 문서를 가리키는 이름 — 파일 이름은 원문으로 고정한다. 리더가 쓰는 규칙과
    같다. 번역 제목은 기계가 지은 이름이라 같은 책이 산출물마다 다른 이름으로
    불린다. */

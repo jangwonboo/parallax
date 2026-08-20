@@ -507,6 +507,7 @@ highlight: {
   list(): Promise<(Highlight & { ord: number; page: number | null })[]>;  // ord 순
   add(frags: { blockId; side; start; end; text }[]): Promise<string>;     // group_id
   remove(groupIds: string[]): Promise<number>;
+  export(groupIds: string[]): Promise<{ ok?; count?; canceled?; error? }>;  // Markdown 한 파일
 }
 ```
 

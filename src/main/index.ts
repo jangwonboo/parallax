@@ -7,7 +7,7 @@ import { Doc } from "./db";
 import { Scheduler } from "./translate/scheduler";
 import * as Imp from "./importers";
 import * as T from "../shared/types";
-import { docTitle, renderMarkdown } from "./exporter";
+import { docTitle, renderMarkdown, renderHighlightMarkdown } from "./exporter";
 
 const DEV = process.argv.includes("--dev");
 let win: BrowserWindow | null = null;
@@ -259,6 +259,25 @@ async function doExport() {
   shell.showItemInFolder(`${base}.ko.md`);
 }
 
+/** 고른 형광펜을 Markdown 한 파일로. 읽은 순서대로, 쪽 번호를 달아 낸다. */
+async function exportHighlights(groupIds: string[]) {
+  if (!doc || !groupIds.length) return { error: "고른 형광펜이 없습니다." };
+  const rows = doc.highlights().filter((h) => groupIds.includes(h.groupId));
+  if (!rows.length) return { error: "고른 형광펜이 없습니다." };
+
+  const m = doc.meta();
+  const r = await dialog.showSaveDialog({
+    defaultPath: `${docTitle(m).replace(/[\/:*?"<>|]/g, "_")} — 형광펜.md`,
+    filters: [{ name: "Markdown", extensions: ["md"] }],
+  });
+  if (r.canceled || !r.filePath) return { canceled: true };
+
+  const md = renderHighlightMarkdown(rows, m.title_ko || m.title);
+  writeFileSync(r.filePath, md, "utf8");
+  shell.showItemInFolder(r.filePath);
+  return { ok: true, count: groupIds.length };
+}
+
 /* ── IPC ─────────────────────────────────────────────── */
 function wireIpc() {
   ipcMain.handle("doc:open", async (_e, path?: string) =>
@@ -315,6 +334,7 @@ function wireIpc() {
   ipcMain.handle("hl:add", (_e, frags: any[]) => doc?.addHighlight(frags) ?? null);
   ipcMain.handle("hl:remove", (_e, groupIds: string[]) =>
     doc?.removeHighlights(groupIds) ?? 0);
+  ipcMain.handle("hl:export", (_e, groupIds: string[]) => exportHighlights(groupIds));
 
   ipcMain.handle("dict:lookup", (_e, word: string) => lookup(word));
   ipcMain.handle("export", () => doExport());

@@ -47,6 +47,8 @@ const api = {
     add: (frags: { blockId: string; side: "src" | "ko"; start: number; end: number; text: string }[]) =>
       ipcRenderer.invoke("hl:add", frags),
     remove: (groupIds: string[]) => ipcRenderer.invoke("hl:remove", groupIds),
+    /** 고른 것을 Markdown 한 파일로. 저장 위치는 main 이 대화상자로 묻는다. */
+    export: (groupIds: string[]) => ipcRenderer.invoke("hl:export", groupIds),
   },
   export: () => ipcRenderer.invoke("export"),
 

@@ -258,6 +258,24 @@ CREATE INDEX hl_group ON highlight(group_id);
 - **`schema_version` 은 올리지 않았다.** 표를 더하는 것은 하위호환이고, 올리면 구버전 앱이 「더 새로운 형식입니다」로 파일 자체를 거부한다. 구버전은 이 표를 모른 채 무시한다.
 - `end` 는 SQLite 예약어(`CASE…END`)라 컬럼명이 `end_off` 다. 짝인 `start` 도 같이 바꿔 뒀다.
 
+```sql
+CREATE TABLE dict_cache (
+  word TEXT PRIMARY KEY, ipa TEXT, defs TEXT NOT NULL, fetched_at INTEGER NOT NULL
+);
+```
+
+형광펜의 어려운 낱말 밑에 다는 영영 뜻이다. **책 안에 둔다** — 낱말은 책마다
+겹치지만 여기 담기는 것은 이 책을 읽으며 막혔던 낱말들이고, 파일 하나로 다니는
+것이 이 포맷의 뜻이다(§7 이 `cache.db` 를 적어 둔 자리인데, 형광펜이 붙으면서
+책과 함께 다녀야 할 이유가 생겼다). 두 번째부터는 네트워크 없이 뜬다.
+
+어려운 낱말 판정은 `main/hardwords.ts` 의 순수 함수다. SCOWL 크기 등급(빌드가
+`dist/main/wordlevels.txt` 로 뽑는다)에서 **40 이상**, 다섯 글자 이상, 복합어·소유격
+제외, 문장 중간의 대문자 제외, 그리고 **책의 용어집에 있는 것 제외**. 마지막이
+고유명사 거름망이다 — SCOWL 은 전부 소문자라 `napoleon`(과자·화폐)과 이름
+Napoleon 을 구분하지 못하는데, 용어집이 바로 그 책에 나오는 이름들의 목록이다.
+드문 순으로 최대 셋.
+
 **되돌리기는 델타로 쌓는다**(`Doc.undoStack`, 99걸음). 스냅숏이 아닌 것은 한 권에
 형광펜이 수백 개면 표 전체를 99벌 드는 셈이라서다. 한 조작이 건드리는 행은 몇 개뿐이다.
 기록은 셋이다 — `inserted`(새로 넣은 id), `deleted`(지운 행 전체), `regrouped`(그룹이

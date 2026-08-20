@@ -8,6 +8,7 @@ import { Scheduler } from "./translate/scheduler";
 import * as Imp from "./importers";
 import * as T from "../shared/types";
 import { docTitle, renderMarkdown, renderHighlightMarkdown } from "./exporter";
+import { hardWords } from "./hardwords";
 
 const DEV = process.argv.includes("--dev");
 let win: BrowserWindow | null = null;
@@ -272,7 +273,8 @@ async function exportHighlights(groupIds: string[]) {
   });
   if (r.canceled || !r.filePath) return { canceled: true };
 
-  const md = renderHighlightMarkdown(rows, m.title_ko || m.title);
+  const md = renderHighlightMarkdown(rows, m.title_ko || m.title,
+                                     await glossHighlights([...new Set(rows.map((h) => h.groupId))]));
   writeFileSync(r.filePath, md, "utf8");
   shell.showItemInFolder(r.filePath);
   return { ok: true, count: groupIds.length };
@@ -337,6 +339,7 @@ function wireIpc() {
   ipcMain.handle("hl:export", (_e, groupIds: string[]) => exportHighlights(groupIds));
   ipcMain.handle("hl:undo", () => doc?.undoHighlight() ?? false);
   ipcMain.handle("hl:undoDepth", () => doc?.undoDepth() ?? 0);
+  ipcMain.handle("hl:gloss", (_e, groupIds: string[]) => glossHighlights(groupIds));
 
   ipcMain.handle("dict:lookup", (_e, word: string) => lookup(word));
   ipcMain.handle("export", () => doExport());
@@ -406,7 +409,59 @@ async function lookup(word: string): Promise<T.DictEntry> {
 
   if (!entry.defs.length && !entry.koOk) entry.error = "조회하지 못했습니다.";
   dictCache.set(key, entry);
+  /* 뜻은 문서에도 남긴다 — 형광펜 주석이 다음 실행에도, 네트워크 없이도 뜬다.
+     spec §7 이 「cache.db 에 넣는다」고 적은 자리인데, 형광펜이 붙으면서
+     책과 함께 다녀야 할 이유가 생겼다. */
+  if (entry.defs.length) { try { doc?.putDefs(key, entry.ipa, entry.defs); } catch {} }
   return entry;
+}
+
+/**
+ * 고른 형광펜마다 「어려운 낱말 + 영영 뜻」.
+ *
+ * 원문 칸만 본다 — 번역 칸에는 영어 낱말이 없다. 판정은 순수 함수이고
+ * (`hardwords.ts`), 뜻은 캐시를 먼저 보고 없는 것만 밖에 나가 받아 온다.
+ * 캐시는 문서 안에 있으므로 두 번째부터는 오프라인에서도 뜬다.
+ */
+async function glossHighlights(groupIds: string[]) {
+  if (!doc || !groupIds.length) return {};
+  const texts = doc.groupTexts(groupIds);
+  const terms = doc.glossaryTerms();
+
+  const perGroup = new Map<string, string[]>();
+  const need = new Set<string>();
+  for (const [g, text] of texts) {
+    const ws = hardWords(text, terms);
+    if (!ws.length) continue;
+    perGroup.set(g, ws);
+    ws.forEach((w) => need.add(w));
+  }
+  if (!need.size) return {};
+
+  const have = doc.cachedDefs([...need]);
+  const missing = [...need].filter((w) => !have.has(w));
+  /* 한 번에 여러 낱말을 받는다. 형광펜 하나에 셋뿐이라 몰려도 몇 개다. */
+  await Promise.all(missing.map(async (w) => {
+    const e = await lookup(w);
+    if (e.defs.length) have.set(w, { ipa: e.ipa, defs: e.defs });
+  }));
+
+  const out: Record<string, { word: string; ipa: string; def: string; pos: string }[]> = {};
+  for (const [g, ws] of perGroup) {
+    const items = ws.flatMap((w) => {
+      const d = have.get(w);
+      if (!d?.defs.length) return [];
+      /* 뜻은 하나만. 사전을 통째로 옮기면 목록이 본문보다 길어진다.
+         다만 표제어를 되풀이하는 뜻은 피한다 — 무료 사전은 「indubitable:
+         That which is indubitable」 같은 것을 첫 뜻으로 내놓는 일이 잦고,
+         그것은 모르는 사람에게 아무것도 알려주지 않는다. */
+      const stem = w.slice(0, Math.max(5, w.length - 3));
+      const pick = d.defs.find((x) => !x.text.toLowerCase().includes(stem)) ?? d.defs[0];
+      return [{ word: w, ipa: d.ipa, pos: pick.pos, def: pick.text }];
+    });
+    if (items.length) out[g] = items;
+  }
+  return out;
 }
 
 /* ── 수명주기 ────────────────────────────────────────── */

@@ -55,6 +55,15 @@ CREATE TABLE IF NOT EXISTS highlight (
 );
 CREATE INDEX IF NOT EXISTS hl_block ON highlight(block_id, side);
 CREATE INDEX IF NOT EXISTS hl_group ON highlight(group_id);
+
+-- 사전 조회 결과. 형광펜의 어려운 낱말 밑에 뜻을 다는 데 쓴다.
+--
+-- 왜 책 안에 두는가. 낱말은 책마다 겹치지만, 여기 담기는 것은 결국 이 책을
+-- 읽으며 막혔던 낱말들이다. 파일 하나로 다니는 것이 이 포맷의 뜻이고, 리더는
+-- 비행기에서도 열려야 한다(같은 이유로 KaTeX 도 동봉한다).
+CREATE TABLE IF NOT EXISTS dict_cache (
+  word TEXT PRIMARY KEY, ipa TEXT, defs TEXT NOT NULL, fetched_at INTEGER NOT NULL
+);
 `;
 
 /** highlight 표의 한 행 그대로. 되돌리기가 이 모양으로 되살린다. */
@@ -362,6 +371,50 @@ export class Doc {
       .run(...groupIds).changes;
     this.pushUndo({ inserted: [], deleted: rows, regrouped: [] });
     return n;
+  }
+
+
+  /* ── 사전 캐시 ────────────────────────────────────── */
+
+  /** 캐시에 있는 것만. 네트워크는 main 이 따로 나간다. */
+  cachedDefs(words: string[]): Map<string, { ipa: string; defs: { pos: string; text: string }[] }> {
+    const out = new Map<string, { ipa: string; defs: { pos: string; text: string }[] }>();
+    if (!words.length) return out;
+    const q = words.map(() => "?").join(",");
+    for (const r of this.db
+      .prepare(`SELECT word, ipa, defs FROM dict_cache WHERE word IN (${q})`)
+      .all(...words) as { word: string; ipa: string; defs: string }[]) {
+      try {
+        out.set(r.word, { ipa: r.ipa || "", defs: JSON.parse(r.defs) });
+      } catch { /* 깨진 캐시는 없는 것으로 친다 */ }
+    }
+    return out;
+  }
+
+  putDefs(word: string, ipa: string, defs: { pos: string; text: string }[]): void {
+    this.db
+      .prepare("INSERT OR REPLACE INTO dict_cache (word,ipa,defs,fetched_at) VALUES (?,?,?,?)")
+      .run(word, ipa, JSON.stringify(defs), Date.now());
+  }
+
+  /** 용어집 표제어 — 어려운 낱말을 고를 때 고유명사 거름망으로 쓴다. */
+  glossaryTerms(): string[] {
+    return (this.db.prepare("SELECT en FROM glossary").all() as { en: string }[])
+      .map((r) => r.en);
+  }
+
+  /** 그룹별 원문 조각. 어려운 낱말은 원문 칸에서만 고른다. */
+  groupTexts(groupIds: string[]): Map<string, string> {
+    const out = new Map<string, string>();
+    if (!groupIds.length) return out;
+    const q = groupIds.map(() => "?").join(",");
+    for (const r of this.db
+      .prepare(`SELECT group_id AS g, text FROM highlight
+                 WHERE group_id IN (${q}) AND side='src' ORDER BY start_off`)
+      .all(...groupIds) as { g: string; text: string }[]) {
+      out.set(r.g, (out.get(r.g) ? out.get(r.g) + " " : "") + r.text);
+    }
+    return out;
   }
 
 

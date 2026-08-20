@@ -12,18 +12,24 @@ const HEAD_LEVEL: Record<string, number | undefined> = { h1: 1, h2: 2, h3: 3 };
  */
 export function renderHighlightMarkdown(
   rows: { groupId: string; page: number | null; text: string }[],
-  title: string
+  title: string,
+  gloss: Record<string, { word: string; ipa: string; pos: string; def: string }[]> = {}
 ): string {
-  const seen = new Map<string, { page: number | null; parts: string[] }>();
+  const seen = new Map<string, { page: number | null; parts: string[]; id: string }>();
   for (const h of rows) {
-    if (!seen.has(h.groupId)) seen.set(h.groupId, { page: h.page, parts: [] });
+    if (!seen.has(h.groupId)) seen.set(h.groupId, { page: h.page, parts: [], id: h.groupId });
     seen.get(h.groupId)!.parts.push(h.text);
   }
   const items = [...seen.values()].map((g) => {
     /* 줄바꿈을 접는다 — 블록 안에서 줄로만 나뉜 목록이 그대로 오면 불릿 하나가
        여러 줄로 흩어져 어디까지가 한 형광펜인지 안 보인다. */
     const body = g.parts.join(" … ").replace(/\s+/g, " ").trim();
-    return `- ${body}${g.page ? ` (p.${g.page})` : ""}`;
+    const head = `- ${body}${g.page ? ` (p.${g.page})` : ""}`;
+    /* 어려운 낱말 풀이는 들여쓴 별표 줄로. 화면에서 본 그대로다. */
+    const defs = (gloss[g.id] ?? []).map(
+      (d) => `  * **${d.word}**${d.ipa ? " " + d.ipa : ""}${d.pos ? " *" + d.pos + "*" : ""} — ${d.def}`
+    );
+    return [head, ...defs].join("\n");
   });
   return [`# ${title} — 형광펜`, "", `${seen.size}개`, "", ...items, ""]
     .join("\n");

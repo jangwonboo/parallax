@@ -52,6 +52,8 @@ const api = {
     /** 마지막 조작 하나를 되돌린다(99걸음까지). 되돌릴 것이 없으면 false. */
     undo: () => ipcRenderer.invoke("hl:undo"),
     undoDepth: () => ipcRenderer.invoke("hl:undoDepth"),
+    /** 형광펜마다 어려운 낱말과 영영 뜻. 캐시에 없는 것만 밖에 나가 받는다. */
+    gloss: (groupIds: string[]) => ipcRenderer.invoke("hl:gloss", groupIds),
   },
   export: () => ipcRenderer.invoke("export"),
 

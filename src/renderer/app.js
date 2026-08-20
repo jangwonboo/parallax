@@ -1113,6 +1113,9 @@ const HL_NAME = "parallax-hl";
 let hlRows = [];                 // DB 의 조각들(ord 순)
 let hlGroups = [];               // 화면 목록 — 조각을 groupId 로 묶은 것
 const hlByBlock = new Map();     // blockId -> 조각[]
+/* groupId -> [{word, ipa, pos, def}]. 어려운 낱말과 그 영영 뜻이다.
+   판정과 조회는 main 이 한다 — 낱말 등급표(1.4MB)와 네트워크가 거기 있다. */
+const hlGloss = new Map();
 
 /** 블록의 한쪽 글. 조각의 좌표가 가리키는 바로 그 문자열이다. */
 function sideText(b, side) {
@@ -1157,6 +1160,30 @@ async function loadHighlights() {
   const live = new Set(hlGroups.map((g) => g.groupId));
   for (const id of [...hlChecked]) if (!live.has(id)) hlChecked.delete(id);
   paintHighlights();
+  renderHlPane();
+  fetchGlosses();
+}
+
+/**
+ * 어려운 낱말 주석을 채운다. 목록을 그린 **뒤에** 따로 돈다 — 사전은 밖에
+ * 나가는 일이라 Alt+H 가 그것을 기다리면 손이 멈춘다. 도착하면 다시 그린다.
+ *
+ * 캐시에 있는 것은 곧바로 오고, 없는 것만 네트워크를 탄다. 실패해도 조용히
+ * 넘어간다 — 형광펜 자체는 이미 그어졌고, 주석은 덤이다.
+ */
+let glossSeq = 0;
+async function fetchGlosses() {
+  const want = hlGroups.filter((g) => g.side === "src" && !hlGloss.has(g.groupId));
+  if (!want.length) return;
+  const seq = ++glossSeq;
+  let got;
+  try {
+    got = await api.highlight.gloss(want.map((g) => g.groupId));
+  } catch { return; }
+  if (seq !== glossSeq) return;              // 그 사이에 목록이 갈렸다
+  /* 빈손으로 온 그룹도 적어 둔다 — 안 그러면 어려운 낱말이 없는 형광펜을
+     목록을 그릴 때마다 다시 물어본다. */
+  for (const g of want) hlGloss.set(g.groupId, got[g.groupId] || []);
   renderHlPane();
 }
 
@@ -1366,6 +1393,36 @@ function renderHlPane() {
     body.dataset.side = g.side;      // 본문과 같은 서체를 고르는 근거
     body.textContent = g.parts.join(" … ");
     main.append(body);
+
+    /* 어려운 낱말 — 그은 글 아래에 별표로 단다. 영영 뜻이다(사용자 지시).
+       원문 칸에만 붙는다. 번역 칸에는 영어 낱말이 없다. */
+    const gloss = hlGloss.get(g.groupId);
+    if (gloss?.length) {
+      const box = document.createElement("span");
+      box.className = "hl-gloss";
+      for (const d of gloss) {
+        const line = document.createElement("span");
+        line.className = "hl-def";
+        const w = document.createElement("b");
+        w.textContent = d.word;
+        line.append("* ", w);
+        if (d.ipa) {
+          const ipa = document.createElement("i");
+          ipa.className = "ipa";
+          ipa.textContent = " " + d.ipa;
+          line.append(ipa);
+        }
+        if (d.pos) {
+          const pos = document.createElement("i");
+          pos.className = "pos";
+          pos.textContent = " " + d.pos;
+          line.append(pos);
+        }
+        line.append(" — " + d.def);
+        box.appendChild(line);
+      }
+      main.append(box);
+    }
     if (g.stale) {
       const warn = document.createElement("span");
       warn.className = "hl-warn";

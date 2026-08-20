@@ -81,6 +81,32 @@ export interface Heading {
   text: string;
 }
 
+/**
+ * 형광펜 한 조각.
+ *
+ * 좌표가 **블록 원문 문자열의 문자 오프셋**이라는 것이 이 구조의 전부다. DOM
+ * 위치로 잡으면 안 된다 — 리더는 가상 스크롤이라 행이 스크롤할 때마다 지워지고
+ * 다시 만들어지고, `setTextWithMath` 가 수식을 KaTeX 로 그려 DOM 글자수와 원문
+ * 글자수가 애초에 다르다.
+ *
+ * `text` 는 그 구간의 사본이다. 붙일 때 `blockText.slice(start,end)` 와 대조해서
+ * 어긋나면 칠하지 않는다 — 번역은 재번역·deslop 으로 바뀌기 때문이다.
+ *
+ * 여러 단락에 걸쳐 그으면 블록마다 조각이 하나씩 생기고 `groupId` 로 묶인다.
+ * 사용자가 한 번 그은 것은 목록에서 한 줄이고 삭제도 한 번이어야 한다.
+ */
+export interface Highlight {
+  id: string;
+  groupId: string;
+  blockId: string;
+  /** 원문 칸인가 번역 칸인가. 둘은 서로를 모른다(spec §6.2). */
+  side: "src" | "ko";
+  start: number;
+  end: number;
+  text: string;
+  createdAt: number;
+}
+
 export type Priority = 0 | 1 | 2 | 3;
 export type Mode = "chapter" | "all";
 

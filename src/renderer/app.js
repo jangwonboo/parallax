@@ -184,18 +184,37 @@ const MATH_SIGNAL = /[\\^_{}]|[α-ωΑ-Ω∑∫√≈≠≤≥±×÷∞∂]/;
 const MATH_BARE = (s) =>
   s.length <= 16 && (!/\s/.test(s) || !/[A-Za-z]{2,}/.test(s));
 
-/** 문자열을 el 에 넣는다. 수식이 섞여 있으면 그 조각만 KaTeX 로 그린다. */
+/**
+ * 문자열을 el 에 넣는다. 수식이 섞여 있으면 그 조각만 KaTeX 로 그린다.
+ *
+ * 넣으면서 **오프셋 지도**(`el.__map`)를 같이 만든다. 형광펜의 좌표는 원문
+ * 문자열의 문자 오프셋인데, 화면의 DOM 은 그것과 글자수가 다르다 — KaTeX 가
+ * `$x^2$` 다섯 글자를 여러 요소로 그려 놓기 때문이다. 지도가 없으면 원문
+ * 좌표에서 DOM 자리를 찾을 방법이 없다.
+ *
+ * 지도의 항목은 둘 중 하나다.
+ *   { node, from, to }            보통 텍스트 — 가운데를 잘라 칠할 수 있다
+ *   { node, from, to, atomic }    수식 — 통째로만 칠한다. 안을 쪼개면 마크업이
+ *                                 깨지고 식이 사라진다
+ */
 function setTextWithMath(el, text) {
+  const map = [];
+  el.__map = map;
+  let at = 0;                       // 원문 문자열에서 지금까지 소비한 길이
   /* 목록은 블록 하나에 담긴 채 줄로만 나뉘어 온다(`split_inline_lists`).
      HTML 은 줄바꿈을 접으므로 표시해 두고 CSS 로 살린다 — 항목마다 블록을
      쪼개면 원문·번역이 항목 단위로 짝지어지는데, 번역이 항목 수를 그대로
      지킨다는 보장이 없다. */
   if (text && text.includes("\n")) el.classList.add("list");
 
-  if (!text || !text.includes("$")) { el.textContent = text || ""; return; }
+  const plain = () => {
+    el.textContent = text || "";
+    if (el.firstChild) map.push({ node: el.firstChild, from: 0, to: (text || "").length });
+  };
+  if (!text || !text.includes("$")) return plain();
 
   const parts = String(text).split(MATH_SPLIT);
-  if (parts.length === 1) { el.textContent = text; return; }
+  if (parts.length === 1) return plain();
 
   el.textContent = "";
   for (const part of parts) {
@@ -205,7 +224,10 @@ function setTextWithMath(el, text) {
     const tex = display ? part.slice(2, -2) : inline ? part.slice(1, -1) : null;
 
     if (tex === null || !(MATH_SIGNAL.test(tex) || MATH_BARE(tex))) {
-      el.appendChild(document.createTextNode(part));   // 돈 표기 등 — 글자 그대로
+      const t = document.createTextNode(part);         // 돈 표기 등 — 글자 그대로
+      el.appendChild(t);
+      map.push({ node: t, from: at, to: at + part.length });
+      at += part.length;
       continue;
     }
     const span = document.createElement("span");
@@ -220,6 +242,8 @@ function setTextWithMath(el, text) {
       span.textContent = part;      // KaTeX 가 아직 안 왔거나 손을 못 대는 것
     }
     el.appendChild(span);
+    map.push({ node: span, from: at, to: at + part.length, atomic: true });
+    at += part.length;
   }
 }
 
@@ -370,6 +394,9 @@ async function renderWindow() {
     measure();
     rebuildTops();
     placeHandle();
+    /* 행은 스크롤할 때마다 새로 만들어진다 — 칠도 그때마다 다시 그린다.
+       DOM 에 남겨 두는 방식이었다면 여기서 사라졌을 것이다. */
+    paintHighlights();
     queueTranslation();
   } finally {
     renderPending = false;
@@ -1021,6 +1048,10 @@ document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
   if (help.dataset.open === "true") return setHelp(false);
   if (dict.dataset.open === "true") return closeDict();
+  /* 선택 모드는 패널보다 안쪽이다 — 한 번에 둘 다 닫으면 체크를 물리려다
+     목록까지 잃는다. */
+  if (hlPicking) return setHlPicking(false);
+  if (hlPane.dataset.open === "true") return setHlPane(false);
   if (typePanel.dataset.open === "true") { setTypePanel(false); return typeBtn.focus(); }
   setToc(false);
 });
@@ -1045,6 +1076,335 @@ doc.addEventListener("mouseover", (e) => {
    칸만 남아** 짝이 아닌 것이 짝처럼 보인다. 사라지는 페이드가 가장 잘 보여야
    할 순간이 바로 여기다. */
 doc.addEventListener("mouseleave", clearMate);
+
+/* ── 형광펜 ──────────────────────────────────────────
+   글을 긁고 Alt+H. 원문 칸과 번역 칸은 서로를 모른다 — spec §6.2 가 낱말 단위
+   좌우 연동을 접은 것과 같은 이유다. 정렬 정보가 없으므로 한쪽에 그은 것을
+   반대쪽 어디에 옮길지 알 방법이 없다. 그래서 아예 옮기지 않는다.
+
+   좌표는 DOM 이 아니라 **블록 원문 문자열의 문자 오프셋**이다. 리더가 가상
+   스크롤이라 행은 스크롤할 때마다 지워졌다 다시 만들어진다 — DOM 에 칠해 두면
+   스크롤 한 번에 사라진다. 칠은 늘 데이터에서 다시 그린다. */
+
+const HL_NAME = "parallax-hl";
+let hlRows = [];                 // DB 의 조각들(ord 순)
+let hlGroups = [];               // 화면 목록 — 조각을 groupId 로 묶은 것
+const hlByBlock = new Map();     // blockId -> 조각[]
+
+/** 블록의 한쪽 글. 조각의 좌표가 가리키는 바로 그 문자열이다. */
+function sideText(b, side) {
+  if (!b) return null;
+  return side === "src" ? (b.src || "") : (b.ko || "");
+}
+
+/** 조각이 아직 제자리인가. 번역은 재번역·deslop 으로 바뀐다. */
+function hlFresh(f) {
+  const t = sideText(loaded.get(f.blockId), f.side);
+  return t != null && t.slice(f.start, f.end) === f.text;
+}
+
+function reindexHighlights() {
+  hlByBlock.clear();
+  for (const f of hlRows) {
+    if (!hlByBlock.has(f.blockId)) hlByBlock.set(f.blockId, []);
+    hlByBlock.get(f.blockId).push(f);
+  }
+  /* 목록은 그룹 단위다. 한 번의 드래그가 세 단락에 걸쳤어도 사용자에게는
+     하나이므로 한 줄이고, 삭제도 한 번이어야 한다. */
+  const seen = new Map();
+  for (const f of hlRows) {
+    if (!seen.has(f.groupId)) {
+      seen.set(f.groupId, {
+        groupId: f.groupId, side: f.side, page: f.page, ord: f.ord,
+        parts: [], stale: false,
+      });
+    }
+    const g = seen.get(f.groupId);
+    g.parts.push(f.text);
+    if (!hlFresh(f)) g.stale = true;
+  }
+  hlGroups = [...seen.values()];
+}
+
+async function loadHighlights() {
+  hlRows = await api.highlight.list();
+  reindexHighlights();
+  paintHighlights();
+  renderHlPane();
+}
+
+/* ── 칠하기 ──────────────────────────────────────────
+   텍스트 노드를 <mark> 로 쪼개지 않는다. 쪼개면 setTextWithMath 가 만들어 둔
+   오프셋 지도가 그 자리에서 무효가 되고, 같은 블록의 다음 형광펜이 어긋난다.
+   CSS Custom Highlight API 는 DOM 을 건드리지 않고 Range 만 칠한다. */
+
+/** 원문 오프셋 [from,to) 를 el 안의 Range 들로. 수식은 통째로만 잡는다. */
+function rangesFor(el, from, to) {
+  const out = [];
+  for (const m of el.__map || []) {
+    if (m.to <= from || m.from >= to) continue;
+    const r = document.createRange();
+    if (m.atomic) {
+      r.selectNode(m.node);            // 안을 쪼개면 식이 깨진다
+    } else {
+      r.setStart(m.node, Math.max(0, from - m.from));
+      r.setEnd(m.node, Math.min(m.node.nodeValue.length, to - m.from));
+    }
+    out.push(r);
+  }
+  return out;
+}
+
+function paintHighlights() {
+  if (!window.CSS?.highlights || typeof Highlight === "undefined") return;
+  const ranges = [];
+  for (const [id, row] of mounted) {
+    const frags = hlByBlock.get(id);
+    if (!frags) continue;
+    for (const f of frags) {
+      if (!hlFresh(f)) continue;       // 번역이 바뀐 자리 — 칠하지 않는다
+      const el = row.querySelector(`.cell.${f.side}`)?.firstChild;
+      if (el) ranges.push(...rangesFor(el, f.start, f.end));
+    }
+  }
+  if (ranges.length) CSS.highlights.set(HL_NAME, new Highlight(...ranges));
+  else CSS.highlights.delete(HL_NAME);
+}
+
+/* ── 선택 → 원문 오프셋 ──────────────────────────────── */
+
+/** DOM 자리(node, offset)가 el 의 원문 문자열에서 몇 번째 글자인가. */
+function srcOffsetOf(el, node, offset) {
+  const map = el.__map || [];
+  for (const m of map) {
+    if (m.node === node) {
+      return m.atomic ? (offset > 0 ? m.to : m.from) : m.from + offset;
+    }
+    /* 수식 안쪽을 짚은 경우 — KaTeX 가 만든 자손이다. 통째로 친다. */
+    if (m.atomic && m.node.contains?.(node)) return m.from;
+  }
+  /* el 자신을 짚었다면 offset 은 자식 번호다. */
+  if (node === el) {
+    const child = el.childNodes[offset];
+    const hit = map.find((m) => m.node === child);
+    if (hit) return hit.from;
+    return map.length ? map[map.length - 1].to : 0;
+  }
+  return null;
+}
+
+/** 지금 선택이 걸친 칸마다 조각 하나. 칸을 못 읽으면 건너뛴다. */
+function fragmentsFromSelection(sel) {
+  if (!sel || sel.isCollapsed || !sel.rangeCount) return [];
+  const range = sel.getRangeAt(0);
+  const out = [];
+  for (const [id, row] of mounted) {
+    for (const side of ["src", "ko"]) {
+      const cell = row.querySelector(`.cell.${side}`);
+      const el = cell?.firstChild;
+      if (!el || !el.__map || !range.intersectsNode(cell)) continue;
+
+      const whole = sideText(loaded.get(id), side);
+      if (whole == null || !whole.length) continue;
+
+      let start = 0, end = whole.length;
+      if (cell.contains(range.startContainer)) {
+        const v = srcOffsetOf(el, range.startContainer, range.startOffset);
+        if (v != null) start = v;
+      }
+      if (cell.contains(range.endContainer)) {
+        const v = srcOffsetOf(el, range.endContainer, range.endOffset);
+        if (v != null) end = v;
+      }
+      if (end <= start) continue;
+      const text = whole.slice(start, end);
+      if (!text.trim()) continue;          // 공백만 긁힌 칸
+      out.push({ blockId: id, side, start, end, text });
+    }
+  }
+  if (!out.length) return [];
+
+  /* 한 그룹은 한쪽 칸에만 있어야 한다. 목록 항목에 「원문」이나 「번역」 딱지를
+     하나만 다는데 조각이 두 칸에 걸쳐 있으면 그 딱지가 거짓이 된다.
+
+     마우스로는 일어나지 않는다 — CSS 가 시작한 쪽 대역만 잡히게 막는다
+     (`body.sel-src .cell.ko { user-select: none }`). 그래도 걸러 둔다.
+     막아 주는 것이 다른 파일의 CSS 한 줄뿐이면 언젠가 뚫린다. */
+  const anchor = out.find((f) =>
+    document.querySelector(`.row[data-id="${f.blockId}"] .cell.${f.side}`)
+      ?.contains(sel.anchorNode));
+  const side = anchor?.side ?? out[0].side;
+  const kept = out.filter((f) => f.side === side);
+
+  /* 읽기 순서대로 — 목록의 미리보기가 긁은 순서대로 이어진다. */
+  const pos = new Map(index.map((x, i) => [x.id, i]));
+  kept.sort((a, b) => (pos.get(a.blockId) ?? 0) - (pos.get(b.blockId) ?? 0));
+  return kept;
+}
+
+async function addHighlightFromSelection() {
+  const sel = getSelection();
+  const frags = fragmentsFromSelection(sel);
+  if (!frags.length) return;
+  await api.highlight.add(frags);
+  sel.removeAllRanges();               // 칠이 보이도록 파란 선택을 걷는다
+  await loadHighlights();
+  if (hlPane.dataset.open !== "true") setHlPane(true);
+}
+
+async function removeHighlights(groupIds) {
+  if (!groupIds.length) return;
+  await api.highlight.remove(groupIds);
+  await loadHighlights();
+}
+
+/* ── 오른쪽 패널 ─────────────────────────────────────── */
+
+const hlPane = document.getElementById("hlPane");
+const hlList = document.getElementById("hlList");
+const hlBtn = document.getElementById("hlBtn");
+const hlCount = document.getElementById("hlCount");
+const hlPick = document.getElementById("hlPick");
+const hlBulk = document.getElementById("hlBulk");
+const hlDelBtn = document.getElementById("hlDelBtn");
+const hlAllBtn = document.getElementById("hlAllBtn");
+
+let hlPicking = false;               // 선택 모드인가
+const hlChecked = new Set();
+
+function setHlPane(open) {
+  hlPane.dataset.open = open ? "true" : "false";
+  hlBtn.setAttribute("aria-expanded", String(open));
+  document.body.classList.toggle("hl-open", open);
+  /* 본문 폭이 바뀐다 — 목차를 열 때와 같은 처리가 필요하다. 안 하면 손잡이가
+     엉뚱한 자리에 서고 가상 스크롤의 높이 추정이 어긋난다. */
+  setTimeout(() => { invalidateHeights(); placeHandle(); }, 260);
+  if (!open) setHlPicking(false);
+}
+
+function setHlPicking(on) {
+  hlPicking = on;
+  hlChecked.clear();
+  hlPane.dataset.picking = on ? "true" : "false";
+  hlPick.textContent = on ? "취소" : "선택";
+  hlBulk.hidden = !on;
+  renderHlPane();
+}
+
+const SIDE_LABEL = { src: "원문", ko: "번역" };
+
+function renderHlPane() {
+  hlCount.textContent = hlGroups.length ? String(hlGroups.length) : "";
+  hlList.textContent = "";
+
+  if (!hlGroups.length) {
+    const empty = document.createElement("p");
+    empty.className = "hl-empty";
+    empty.textContent = "글을 긁고 Alt+H 를 누르면 여기 쌓입니다.";
+    hlList.appendChild(empty);
+    hlPick.hidden = true;
+    return;
+  }
+  hlPick.hidden = false;
+
+  for (const g of hlGroups) {
+    const li = document.createElement("div");
+    li.className = "hl-item" + (g.stale ? " stale" : "");
+    li.dataset.group = g.groupId;
+
+    if (hlPicking) {
+      /* radio 가 아니라 checkbox 다. radio 는 한 그룹에서 하나만 골라지므로
+         「복수 선택 후 일괄삭제」와 애초에 맞지 않는다. */
+      const box = document.createElement("input");
+      box.type = "checkbox";
+      box.className = "hl-check";
+      box.checked = hlChecked.has(g.groupId);
+      box.setAttribute("aria-label", "선택");
+      box.addEventListener("change", () => {
+        if (box.checked) hlChecked.add(g.groupId); else hlChecked.delete(g.groupId);
+        syncBulk();
+      });
+      li.appendChild(box);
+    }
+
+    const main = document.createElement("button");
+    main.className = "hl-main";
+    main.type = "button";
+    const head = document.createElement("span");
+    head.className = "hl-head";
+    head.textContent = SIDE_LABEL[g.side] + (g.page ? `  p.${g.page}` : "");
+    const body = document.createElement("span");
+    body.className = "hl-text";
+    body.textContent = g.parts.join(" … ");
+    main.append(head, body);
+    if (g.stale) {
+      const warn = document.createElement("span");
+      warn.className = "hl-warn";
+      warn.textContent = "번역이 바뀌었습니다";
+      main.appendChild(warn);
+    }
+    /* 선택 모드에서는 이동이 아니라 체크다 — 두 동작이 같은 자리를 다투면
+       무엇이 일어날지 손이 알 수 없다. */
+    main.addEventListener("click", () => {
+      if (hlPicking) {
+        const box = li.querySelector(".hl-check");
+        box.checked = !box.checked;
+        box.dispatchEvent(new Event("change"));
+        return;
+      }
+      const first = hlRows.find((f) => f.groupId === g.groupId);
+      if (first) gotoBlock(first.blockId);
+    });
+    li.appendChild(main);
+
+    /* 🗑 은 선택 모드에서 감춘다 — 체크해 둔 것이 있는데 다른 항목의 🗑 을
+       누르면 무엇이 지워져야 하는지 답이 없다. 모드가 두 길을 배타로 만든다. */
+    if (!hlPicking) {
+      const del = document.createElement("button");
+      del.className = "hl-del";
+      del.type = "button";
+      del.title = "이 형광펜 지우기";
+      del.setAttribute("aria-label", "지우기");
+      del.textContent = "🗑";
+      del.addEventListener("click", (e) => {
+        e.stopPropagation();
+        removeHighlights([g.groupId]);
+      });
+      li.appendChild(del);
+    }
+    hlList.appendChild(li);
+  }
+  syncBulk();
+}
+
+function syncBulk() {
+  const n = hlChecked.size;
+  hlDelBtn.disabled = !n;
+  hlDelBtn.textContent = n ? `${n}개 삭제` : "삭제";
+  hlAllBtn.textContent = n === hlGroups.length && n > 0 ? "모두 해제" : "모두";
+}
+
+hlBtn.addEventListener("click", () => setHlPane(hlPane.dataset.open !== "true"));
+document.getElementById("hlClose").addEventListener("click", () => setHlPane(false));
+hlPick.addEventListener("click", () => setHlPicking(!hlPicking));
+hlAllBtn.addEventListener("click", () => {
+  if (hlChecked.size === hlGroups.length) hlChecked.clear();
+  else hlGroups.forEach((g) => hlChecked.add(g.groupId));
+  renderHlPane();
+});
+hlDelBtn.addEventListener("click", async () => {
+  await removeHighlights([...hlChecked]);
+  setHlPicking(false);
+});
+
+
+/* Alt+H. 메뉴 accelerator 와 겹치지 않는다(CmdOrCtrl+O 와 F1 뿐이다). */
+document.addEventListener("keydown", (e) => {
+  if (!e.altKey || e.ctrlKey || e.metaKey) return;
+  if ((e.key || "").toLowerCase() !== "h") return;
+  e.preventDefault();
+  addHighlightFromSelection();
+});
 
 /* 우하단 진행 위젯은 2026-08-06 에 뺐다(사용자 지시) — 진행·지출 집계는
    main 의 스케줄러가 계속 물고 있으므로 되살릴 일이 생기면 stats 이벤트만
@@ -1106,6 +1466,10 @@ api.on("doc:opened", async (e) => {
   index = all.map((b) => ({ id: b.id, type: b.type, h: heights[b.id] || estimateOf(b) }));
 
   renderToc(outline);
+  /* 형광펜은 문서에 딸린 것이라 문서를 바꾸면 통째로 갈린다. 목록·칠·개수
+     표시가 모두 이 한 번에서 나온다. */
+  setHlPicking(false);
+  await loadHighlights();
 
   welcome.remove?.();
   resetDoc();
@@ -1155,6 +1519,11 @@ api.on("block:updated", async ({ ids }) => {
   }
   measure();
   rebuildTops();
+  /* 번역이 다시 쓰였다 — 번역 칸 형광펜의 사본이 아직 맞는지 다시 따진다.
+     안 맞으면 지우지 않고 목록에 「번역이 바뀌었습니다」로 남긴다. */
+  reindexHighlights();
+  paintHighlights();
+  renderHlPane();
 });
 /* 여는 중 표시 — 페이지 검증은 쪽마다 모델을 부르므로 몇 분씩 간다. 어디까지
    갔는지와 멈추는 버튼이 없으면 멈춘 것과 구분되지 않는다. */

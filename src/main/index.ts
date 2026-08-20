@@ -309,6 +309,13 @@ function wireIpc() {
     return { ok: true, ...keyStatus() };
   });
 
+  /* 형광펜. 읽기는 목록 하나로 끝난다 — 한 권에 수백 개를 넘길 일이 없어
+     구간 질의를 둘 이유가 없다. */
+  ipcMain.handle("hl:list", () => doc?.highlights() ?? []);
+  ipcMain.handle("hl:add", (_e, frags: any[]) => doc?.addHighlight(frags) ?? null);
+  ipcMain.handle("hl:remove", (_e, groupIds: string[]) =>
+    doc?.removeHighlights(groupIds) ?? 0);
+
   ipcMain.handle("dict:lookup", (_e, word: string) => lookup(word));
   ipcMain.handle("export", () => doExport());
 }

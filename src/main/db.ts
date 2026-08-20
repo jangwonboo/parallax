@@ -37,6 +37,24 @@ CREATE TABLE IF NOT EXISTS glossary (
 CREATE TABLE IF NOT EXISTS page_check (
   page INTEGER PRIMARY KEY, coverage REAL, columns INTEGER, notes TEXT, checked_at INTEGER
 );
+
+-- 형광펜. 사용자가 그은 것이라 책에 딸려 다녀야 한다 — 그래서 별도 파일이
+-- 아니라 .parallax 안이다. 좌표는 DOM 이 아니라 block.src / block.ko 의
+-- **문자 오프셋**이다(shared/types.ts 의 Highlight 주석 참조).
+--
+-- schema_version 은 올리지 않는다. 표를 더하는 것은 하위호환이고, 올리면
+-- 구버전 앱이 「더 새로운 형식입니다」로 파일 자체를 거부한다. 구버전은 이
+-- 표를 모른 채 그냥 무시하면 된다.
+CREATE TABLE IF NOT EXISTS highlight (
+  id TEXT PRIMARY KEY, group_id TEXT NOT NULL, block_id TEXT NOT NULL,
+  -- end 는 SQLite 예약어(CASE…END)라 컬럼명으로 쓰면 인용해야 한다. 짝인
+  -- start 까지 같이 바꿔 둔다 — 한쪽만 다르면 질의문마다 헷갈린다.
+  -- (이 DDL 은 template literal 이다 — 주석에 백틱을 쓰면 문자열이 끊긴다.)
+  side TEXT NOT NULL, start_off INTEGER NOT NULL, end_off INTEGER NOT NULL,
+  text TEXT NOT NULL, created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS hl_block ON highlight(block_id, side);
+CREATE INDEX IF NOT EXISTS hl_group ON highlight(group_id);
 `;
 
 export class Doc {
@@ -61,6 +79,8 @@ export class Doc {
       if (!has) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${decl}`);
     };
     add("asset", "wfrac", "REAL");
+    /* 표를 더하는 것은 위 DDL 의 `IF NOT EXISTS` 가 옛 파일에도 해 준다 —
+       열을 더하는 것과 달리 여기서 따로 할 일이 없다. */
   }
 
   static open(path: string): Doc {
@@ -233,6 +253,88 @@ export class Doc {
 
   clearHeights(): void {
     this.db.prepare("UPDATE block SET height_px=NULL").run();
+  }
+
+  /* ── 형광펜 ──────────────────────────────────────────
+     좌표는 block.src / block.ko 의 문자 오프셋이다. 여기서는 그것을 저장하고
+     겹침만 정리한다 — 무엇이 어디에 칠해지는지는 렌더러가 판단한다. */
+
+  /** 읽기 순서(ord)대로. `page` 는 목록에 쪽을 적기 위한 것이다. */
+  highlights(): (T.Highlight & { ord: number; page: number | null })[] {
+    return this.db
+      .prepare(
+        `SELECT h.id, h.group_id AS groupId, h.block_id AS blockId, h.side,
+                h.start_off AS start, h.end_off AS end, h.text,
+                h.created_at AS createdAt, b.ord, b.page
+           FROM highlight h JOIN block b ON b.id = h.block_id
+          ORDER BY b.ord, h.side DESC, h.start_off`
+      )
+      .all() as any;
+  }
+
+  /**
+   * 형광펜 하나를 넣는다. `frags` 는 한 번의 드래그가 걸친 블록마다 한 조각.
+   *
+   * **겹치면 합집합 하나로 합친다**(사용자 결정 2026-08-20). 중첩을 허용하면
+   * 화면의 칠 하나에 목록 항목이 둘 붙어 「이 칠을 지우려면 어느 항목인가」에
+   * 답이 없어진다. 🗑 을 눌러도 절반만 지워지는 꼴이 된다.
+   *
+   * 합칠 때 겹친 그룹을 통째로 지우지 않고 **남은 조각을 새 그룹으로 데려온다.**
+   * 세 단락에 걸친 형광펜의 가운데 단락만 겹쳐 그었다고 해서 위아래 단락의
+   * 칠까지 사라지면 안 된다.
+   */
+  addHighlight(
+    frags: { blockId: string; side: "src" | "ko"; start: number; end: number; text: string }[]
+  ): string {
+    const gid = randomUUID();
+    const now = Date.now();
+
+    const overlapping = this.db.prepare(
+      /* 맞닿은 것(`<=`)까지 겹친 것으로 친다 — 「abc」와 바로 뒤 「def」를 따로
+         두면 화면에는 이어진 칠 하나로 보이는데 항목은 둘이다. */
+      `SELECT id, group_id AS gid, start_off AS s, end_off AS e FROM highlight
+        WHERE block_id=? AND side=? AND start_off <= ? AND end_off >= ?`
+    );
+    const dropFrag = this.db.prepare("DELETE FROM highlight WHERE id=?");
+    const reparent = this.db.prepare("UPDATE highlight SET group_id=? WHERE group_id=?");
+    const ins = this.db.prepare(
+      `INSERT INTO highlight (id,group_id,block_id,side,start_off,end_off,text,created_at)
+       VALUES (?,?,?,?,?,?,?,?)`
+    );
+
+    this.db.transaction(() => {
+      for (const f of frags) {
+        let { start, end, text } = f;
+        const hit = overlapping.all(f.blockId, f.side, end, start) as
+          { id: string; gid: string; s: number; e: number }[];
+        for (const h of hit) {
+          start = Math.min(start, h.s);
+          end = Math.max(end, h.e);
+          dropFrag.run(h.id);
+          /* 이 블록 밖에 있던 같은 그룹의 조각들을 새 그룹으로 옮긴다.
+             위에서 이 블록의 조각은 이미 지웠으므로 중복은 생기지 않는다. */
+          if (h.gid !== gid) reparent.run(gid, h.gid);
+        }
+        /* 범위가 넓어졌으면 사본도 다시 떠야 한다 — 옛 사본을 그대로 두면
+           다음 대조에서 어긋난 것으로 판정돼 칠이 안 된다. */
+        if (start !== f.start || end !== f.end) {
+          const b = this.db.prepare("SELECT src, ko FROM block WHERE id=?")
+            .get(f.blockId) as { src: string; ko: string | null } | undefined;
+          const whole = (f.side === "src" ? b?.src : b?.ko) ?? "";
+          text = whole.slice(start, end);
+        }
+        ins.run(randomUUID(), gid, f.blockId, f.side, start, end, text, now);
+      }
+    })();
+    return gid;
+  }
+
+  /** 그룹 단위로 지운다. 사용자가 한 번 그은 것은 한 번에 사라져야 한다. */
+  removeHighlights(groupIds: string[]): number {
+    if (!groupIds.length) return 0;
+    const q = groupIds.map(() => "?").join(",");
+    return this.db.prepare(`DELETE FROM highlight WHERE group_id IN (${q})`)
+      .run(...groupIds).changes;
   }
 
   outline(): T.Heading[] {

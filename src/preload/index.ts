@@ -41,6 +41,13 @@ const api = {
   dict: {
     lookup: (word: string) => ipcRenderer.invoke("dict:lookup", word),
   },
+  highlight: {
+    list: () => ipcRenderer.invoke("hl:list"),
+    /** 한 번의 드래그가 걸친 블록마다 조각 하나. 그룹 id 를 돌려준다. */
+    add: (frags: { blockId: string; side: "src" | "ko"; start: number; end: number; text: string }[]) =>
+      ipcRenderer.invoke("hl:add", frags),
+    remove: (groupIds: string[]) => ipcRenderer.invoke("hl:remove", groupIds),
+  },
   export: () => ipcRenderer.invoke("export"),
 
   on(channel: string, cb: (payload: any) => void): () => void {

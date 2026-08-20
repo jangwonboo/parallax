@@ -233,6 +233,31 @@ CREATE TABLE page_check (
 - `page = 0` 행은 요약이다 — `notes`에 엔진·모델·수정 통계 한 줄, `coverage`·`columns`는 NULL. 실제 쪽 번호는 1부터라 충돌하지 않는다.
 - 쪽별 행의 `notes`는 이상 사유와 판독 메모를 `" — "`로 합친 문자열이다. 스킬 `export.py`와 앱 `db.ts: Doc.create`가 같은 규칙으로 쓴다.
 
+```sql
+CREATE TABLE highlight (
+  id         TEXT PRIMARY KEY,
+  group_id   TEXT NOT NULL,      -- 사용자가 한 번 그은 것. 여러 블록에 걸치면 조각이 여럿
+  block_id   TEXT NOT NULL,
+  side       TEXT NOT NULL,      -- 'src' | 'ko'
+  start_off  INTEGER NOT NULL,   -- block.src / block.ko 안의 **문자 오프셋**
+  end_off    INTEGER NOT NULL,
+  text       TEXT NOT NULL,      -- 그 구간의 사본. 붙일 때 대조한다
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX hl_block ON highlight(block_id, side);
+CREATE INDEX hl_group ON highlight(group_id);
+```
+
+사용자가 그은 형광펜이다. 주석은 책에 딸린 것이라 별도 파일이 아니라 여기 둔다.
+
+- **좌표는 DOM 이 아니라 문자 오프셋이다.** 리더가 가상 스크롤이라 행은 스크롤할 때마다 지워졌다 다시 만들어진다. DOM 에 칠해 두면 스크롤 한 번에 사라진다. 칠은 늘 이 좌표에서 다시 그린다.
+- **`text` 는 검증용 사본이다.** 붙일 때 `blockText.slice(start_off, end_off)` 와 대조해서 어긋나면 칠하지 않는다. `ko` 는 재번역·deslop 으로 바뀌기 때문이다. 못 찾은 것은 지우지 않고 목록에 「번역이 바뀌었습니다」로 남긴다 — 사용자가 만든 것을 앱이 말없이 버리지 않는다.
+- **원문과 번역은 서로를 모른다.** §6.2 가 낱말 단위 좌우 연동을 접은 것과 같은 이유다. 정렬 정보가 없으니 한쪽에 그은 것을 반대쪽 어디에 옮길지 알 방법이 없다.
+- **겹치면 합집합 하나로 합친다.** 중첩을 허용하면 화면의 칠 하나에 목록 항목이 둘 붙어 「이 칠을 지우려면 어느 항목인가」에 답이 없어진다. 합칠 때 겹친 그룹의 **다른 블록 조각은 새 그룹으로 데려온다** — 세 단락짜리 형광펜의 가운데만 덧그었다고 위아래가 사라지면 안 된다.
+- 불변식: `(group_id, block_id, side)` 마다 조각은 하나다.
+- **`schema_version` 은 올리지 않았다.** 표를 더하는 것은 하위호환이고, 올리면 구버전 앱이 「더 새로운 형식입니다」로 파일 자체를 거부한다. 구버전은 이 표를 모른 채 무시한다.
+- `end` 는 SQLite 예약어(`CASE…END`)라 컬럼명이 `end_off` 다. 짝인 `start` 도 같이 바꿔 뒀다.
+
 #### 불변식
 
 읽는 쪽이 기대해도 되는 것들. 쓰는 쪽은 반드시 지켜야 한다.
@@ -476,6 +501,17 @@ interface ParallaxAPI {
 }
 ```
 
+```ts
+// 형광펜
+highlight: {
+  list(): Promise<(Highlight & { ord: number; page: number | null })[]>;  // ord 순
+  add(frags: { blockId; side; start; end; text }[]): Promise<string>;     // group_id
+  remove(groupIds: string[]): Promise<number>;
+}
+```
+
+읽기는 목록 하나로 끝난다 — 한 권에 수백 개를 넘길 일이 없어 구간 질의를 둘 이유가 없다. `add` 는 한 번의 드래그가 걸친 블록마다 조각 하나를 받고, 겹침 정리는 main 이 한다.
+
 **`block:updated`는 ID 배열만 보낸다.** 본문을 실어 보내면 IPC가 막힌다. renderer는 ID를 받아 자기 창에 걸린 것만 다시 당겨온다.
 
 ---
@@ -542,6 +578,8 @@ renderer/
 문장 단위는 포기한다. 에세이체는 영어 장문을 한국어 여러 문장으로 쪼개므로 문장 수가 애초에 맞지 않는다. 문장 1:1을 지향하는 직역체를 뺀 이상 기술적으로 성립하지 않는다.
 
 단어 단위도 하지 않는다. 정렬 모델(awesome-align 등)을 붙이는 비용 대비 효용이 없다.
+
+**형광펜(2026-08-20)은 이 결론을 뒤집지 않는다.** 오히려 같은 전제 위에 선다 — 원문에 그은 것을 번역 쪽 어디에 옮길지 알 방법이 없으므로 **아예 옮기지 않는다.** 두 칸은 각자 자기 좌표로 칠하고 서로를 모른다. 두 쪽 다 칠하려면 두 번 긋는다. 형광펜이 낱말 단위인 것은 사용자가 직접 끝을 정하기 때문이지 앱이 대응을 알아서가 아니다.
 
 ---
 

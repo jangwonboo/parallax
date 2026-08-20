@@ -24,6 +24,10 @@
   <button id="typeBtn" aria-expanded="false" aria-controls="typePanel">조판</button>
   <!-- 테마는 둘뿐이라 셀렉트 대신 토글 버튼 — 결과가 화면 전체로 보인다 -->
   <button id="themeBtn" aria-pressed="false" title="밝게 · 어둡게 전환">색상</button>
+  <!-- 형광펜 목록. 목차가 왼쪽에서 본문을 밀듯 오른쪽에서 민다. 개수는
+       버튼 안에 붙여 둔다 — 접어 둔 채로도 몇 개인지 보여야 한다. -->
+  <button id="hlBtn" class="right" aria-expanded="false" aria-controls="hlPane"
+          title="형광펜 목록">형광펜 <span id="hlCount" class="badge"></span></button>
 </header>
 
 <div class="panel" id="typePanel" data-open="false" role="group" aria-label="조판">
@@ -63,6 +67,23 @@
           aria-valuemin="20" aria-valuemax="80" aria-valuenow="50"></button>
 </main>
 
+<!-- 형광펜 목록. 항목을 누르면 그 자리로 간다. 「선택」을 누르면 체크박스가
+     떠서 여러 개를 한 번에 지운다 — 그때 항목별 🗑 은 감춘다(두 삭제 경로가
+     같은 화면에 있으면 무엇이 지워지는지 답이 없다). -->
+<aside class="hlpane" id="hlPane" data-open="false" data-picking="false"
+       aria-label="형광펜">
+  <div class="head">
+    <h2>형광펜</h2>
+    <button id="hlPick" type="button" class="ghost">선택</button>
+    <button id="hlClose" type="button" aria-label="닫기">✕</button>
+  </div>
+  <div class="list" id="hlList"></div>
+  <div class="bulk" id="hlBulk" hidden>
+    <button id="hlAllBtn" type="button" class="ghost">모두</button>
+    <button id="hlDelBtn" type="button" class="danger" disabled>삭제</button>
+  </div>
+</aside>
+
 <aside class="dict" id="dict" data-open="false" role="dialog" aria-label="사전">
   <div class="head">
     <span class="word" id="dWord"></span>
@@ -94,6 +115,19 @@
         <li>폭은 저장하지 않는다 — 시작은 언제나 반반이다.</li>
         <li>마우스를 올린 단락은 <b>원문·번역 두 칸이 함께</b> 밝아진다. 어느 것이 짝인지 눈으로 바로 찾으라는 표시다.</li>
         <li>드래그로 글을 고르면 <b>시작한 쪽 대역만</b> 잡힌다. 반대쪽 열이 끼어들지 않는다.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h3>형광펜</h3>
+      <p>글을 긁고 <b>Alt+H</b>. 칠한 것은 오른쪽 목록에 읽은 순서대로 쌓인다.</p>
+      <ul>
+        <li>원문과 번역은 <b>서로를 모른다</b>. 한쪽에 칠해도 반대쪽은 그대로다 — 낱말이 어디에 대응하는지 알 방법이 없기 때문이다. 두 쪽 다 칠하려면 두 번 긋는다.</li>
+        <li>목록 항목을 누르면 <b>그 자리로 간다</b>. 오른쪽 <b>🗑</b> 로 하나씩 지운다.</li>
+        <li>여러 개를 한 번에 지우려면 <b>선택</b> 을 누른다. 체크한 것만 지워진다.</li>
+        <li>이미 칠한 자리에 <b>겹쳐 그으면 하나로 합쳐진다</b>. 칠 하나에 목록 한 줄이 늘 맞물린다.</li>
+        <li>번역을 다시 돌려 칠할 자리가 사라지면 목록에 <b>「번역이 바뀌었습니다」</b> 로 남는다. 지우지는 않는다.</li>
+        <li>형광펜은 <code>.parallax</code> 안에 들어간다 — 파일을 옮기면 따라간다.</li>
       </ul>
     </section>
 

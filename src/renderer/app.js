@@ -1152,6 +1152,10 @@ function reindexHighlights() {
 async function loadHighlights() {
   hlRows = await api.highlight.list();
   reindexHighlights();
+  /* 체크해 둔 것이 사라졌을 수 있다 — 되돌리기로 되살아나거나 없어지기 때문이다.
+     걸러 두지 않으면 「2개 삭제」가 실은 하나만 지운다. */
+  const live = new Set(hlGroups.map((g) => g.groupId));
+  for (const id of [...hlChecked]) if (!live.has(id)) hlChecked.delete(id);
   paintHighlights();
   renderHlPane();
 }
@@ -1433,12 +1437,38 @@ hlExpBtn.addEventListener("click", async () => {
 });
 
 
-/* Alt+H. 메뉴 accelerator 와 겹치지 않는다(CmdOrCtrl+O 와 F1 뿐이다). */
+/**
+ * 마지막 조작을 되돌린다. 무엇을 되돌릴지는 main 이 안다 — 델타를 거기 쌓는다.
+ *
+ * 되돌려도 패널을 열지 않는다. Alt+H 는 없던 것이 생기니 어디 앉았는지 보여
+ * 줘야 하지만, 되돌리기는 방금 본 것을 없던 일로 하는 것이라 화면을 새로 열
+ * 까닭이 없다. 읽던 사람 앞으로 패널이 튀어나오는 편이 더 방해다.
+ */
+async function undoHighlight() {
+  const done = await api.highlight.undo();
+  if (!done) return flashNoUndo();
+  await loadHighlights();
+}
+
+/* 되돌릴 것이 없을 때 아무 일도 안 일어나면 키가 먹었는지 알 수 없어 계속
+   누르게 된다. 짧게 한 번 깜빡여 「받았지만 되돌릴 것이 없다」를 말한다. */
+let flashTimer = null;
+function flashNoUndo() {
+  if (hlPane.dataset.open !== "true") return;   // 안 보이는 곳에서 깜빡여 봐야
+  hlPane.classList.remove("nudge");
+  void hlPane.offsetWidth;                      // 되감아 다시 트는 관용구
+  hlPane.classList.add("nudge");
+  clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => hlPane.classList.remove("nudge"), 450);
+}
+
+/* Alt+H 로 긋고 Alt+U 로 되돌린다. 메뉴 accelerator 와 겹치지 않는다
+   (CmdOrCtrl+O 와 F1 뿐이다). */
 document.addEventListener("keydown", (e) => {
   if (!e.altKey || e.ctrlKey || e.metaKey) return;
-  if ((e.key || "").toLowerCase() !== "h") return;
-  e.preventDefault();
-  addHighlightFromSelection();
+  const k = (e.key || "").toLowerCase();
+  if (k === "h") { e.preventDefault(); addHighlightFromSelection(); return; }
+  if (k === "u") { e.preventDefault(); undoHighlight(); }
 });
 
 /* 우하단 진행 위젯은 2026-08-06 에 뺐다(사용자 지시) — 진행·지출 집계는

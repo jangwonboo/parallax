@@ -57,6 +57,12 @@ CREATE INDEX IF NOT EXISTS hl_block ON highlight(block_id, side);
 CREATE INDEX IF NOT EXISTS hl_group ON highlight(group_id);
 `;
 
+/** highlight 표의 한 행 그대로. 되돌리기가 이 모양으로 되살린다. */
+type HlRow = {
+  id: string; group_id: string; block_id: string; side: "src" | "ko";
+  start_off: number; end_off: number; text: string; created_at: number;
+};
+
 export class Doc {
   readonly db: Database.Database;
   readonly path: string;
@@ -288,6 +294,10 @@ export class Doc {
   ): string {
     const gid = randomUUID();
     const now = Date.now();
+    const undo = {
+      inserted: [] as string[], deleted: [] as HlRow[],
+      regrouped: [] as { id: string; groupId: string }[],
+    };
 
     const overlapping = this.db.prepare(
       /* 맞닿은 것(`<=`)까지 겹친 것으로 친다 — 「abc」와 바로 뒤 「def」를 따로
@@ -295,6 +305,8 @@ export class Doc {
       `SELECT id, group_id AS gid, start_off AS s, end_off AS e FROM highlight
         WHERE block_id=? AND side=? AND start_off <= ? AND end_off >= ?`
     );
+    const rowById = this.db.prepare("SELECT * FROM highlight WHERE id=?");
+    const idsInGroup = this.db.prepare("SELECT id FROM highlight WHERE group_id=?");
     const dropFrag = this.db.prepare("DELETE FROM highlight WHERE id=?");
     const reparent = this.db.prepare("UPDATE highlight SET group_id=? WHERE group_id=?");
     const ins = this.db.prepare(
@@ -310,10 +322,17 @@ export class Doc {
         for (const h of hit) {
           start = Math.min(start, h.s);
           end = Math.max(end, h.e);
+          undo.deleted.push(rowById.get(h.id) as HlRow);
           dropFrag.run(h.id);
           /* 이 블록 밖에 있던 같은 그룹의 조각들을 새 그룹으로 옮긴다.
              위에서 이 블록의 조각은 이미 지웠으므로 중복은 생기지 않는다. */
-          if (h.gid !== gid) reparent.run(gid, h.gid);
+          if (h.gid !== gid) {
+            /* 옮기기 **전에** 적어 둔다. 옮긴 뒤에는 옛 group_id 를 알 길이 없다. */
+            for (const r of idsInGroup.all(h.gid) as { id: string }[]) {
+              undo.regrouped.push({ id: r.id, groupId: h.gid });
+            }
+            reparent.run(gid, h.gid);
+          }
         }
         /* 범위가 넓어졌으면 사본도 다시 떠야 한다 — 옛 사본을 그대로 두면
            다음 대조에서 어긋난 것으로 판정돼 칠이 안 된다. */
@@ -323,9 +342,12 @@ export class Doc {
           const whole = (f.side === "src" ? b?.src : b?.ko) ?? "";
           text = whole.slice(start, end);
         }
-        ins.run(randomUUID(), gid, f.blockId, f.side, start, end, text, now);
+        const id = randomUUID();
+        ins.run(id, gid, f.blockId, f.side, start, end, text, now);
+        undo.inserted.push(id);
       }
     })();
+    this.pushUndo(undo);
     return gid;
   }
 
@@ -333,8 +355,68 @@ export class Doc {
   removeHighlights(groupIds: string[]): number {
     if (!groupIds.length) return 0;
     const q = groupIds.map(() => "?").join(",");
-    return this.db.prepare(`DELETE FROM highlight WHERE group_id IN (${q})`)
+    const rows = this.db.prepare(`SELECT * FROM highlight WHERE group_id IN (${q})`)
+      .all(...groupIds) as HlRow[];
+    if (!rows.length) return 0;
+    const n = this.db.prepare(`DELETE FROM highlight WHERE group_id IN (${q})`)
       .run(...groupIds).changes;
+    this.pushUndo({ inserted: [], deleted: rows, regrouped: [] });
+    return n;
+  }
+
+
+  /* ── 되돌리기 ────────────────────────────────────────
+     스냅숏이 아니라 **델타**를 쌓는다. 한 권에 형광펜이 수백 개가 되면 표 전체를
+     99벌 들고 있는 셈이라 수 MB 다. 한 번의 조작이 건드리는 행은 몇 개뿐이다.
+
+     델타가 셋인 것은 병합 때문이다. 겹쳐 그으면 ① 새 조각이 들어가고
+     ② 겹친 조각이 지워지고 ③ 그 그룹의 **다른 블록 조각들이 새 그룹으로 옮겨진다**.
+     ③을 빼먹으면 되돌린 뒤 세 단락짜리 형광펜이 두 동강 난 채로 남는다. */
+  private undoStack: {
+    inserted: string[];
+    deleted: HlRow[];
+    regrouped: { id: string; groupId: string }[];
+  }[] = [];
+
+  /** 되돌릴 수 있는 횟수. 툴팁·도움말이 쓴다. */
+  undoDepth(): number {
+    return this.undoStack.length;
+  }
+
+  private pushUndo(e: Doc["undoStack"][number]): void {
+    if (!e.inserted.length && !e.deleted.length && !e.regrouped.length) return;
+    this.undoStack.push(e);
+    /* 99 걸음까지. 더 쌓지 않는 것은 메모리보다 뜻의 문제다 — 그보다 오래된
+       것은 「방금 한 일」이 아니라서, 되돌아가면 무엇이 사라지는지 알 수 없다. */
+    if (this.undoStack.length > 99) this.undoStack.shift();
+  }
+
+  /**
+   * 마지막 조작 하나를 되돌린다. 되돌릴 것이 없으면 false.
+   *
+   * 순서가 중요하다. ③ 그룹 되돌리기를 **맨 뒤**에 둔다 — 한 번의 조작 안에서
+   * 어떤 행이 먼저 옮겨졌다가 나중에 지워졌으면, ②에서 되살린 행의 group_id 는
+   * 이미 옮겨진 뒤의 값이다. ③이 그것을 원래 값으로 고쳐 놓는다.
+   */
+  undoHighlight(): boolean {
+    const e = this.undoStack.pop();
+    if (!e) return false;
+    const del = this.db.prepare("DELETE FROM highlight WHERE id=?");
+    const ins = this.db.prepare(
+      `INSERT OR REPLACE INTO highlight
+         (id,group_id,block_id,side,start_off,end_off,text,created_at)
+       VALUES (?,?,?,?,?,?,?,?)`
+    );
+    const setG = this.db.prepare("UPDATE highlight SET group_id=? WHERE id=?");
+    this.db.transaction(() => {
+      for (const id of e.inserted) del.run(id);
+      for (const r of e.deleted) {
+        ins.run(r.id, r.group_id, r.block_id, r.side, r.start_off, r.end_off,
+                r.text, r.created_at);
+      }
+      for (const g of e.regrouped) setG.run(g.groupId, g.id);
+    })();
+    return true;
   }
 
   outline(): T.Heading[] {

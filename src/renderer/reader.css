@@ -916,6 +916,16 @@ body.dragging { user-select: none; cursor: col-resize; }
 .hlpane .bulk[hidden] { display: none; }
 .hlpane .bulk #hlExpBtn { margin-left: auto; }
 
+/* 되돌릴 것이 없을 때. 아무 일도 안 일어나면 키가 먹었는지 알 수 없어 계속
+   누르게 된다. 자리를 옮기지 않고 테두리만 한 번 밝힌다 — 흔들면 읽던 글이
+   같이 움직인다. */
+@keyframes hl-nudge {
+  0%, 100% { border-left-color: var(--rule); }
+  35%      { border-left-color: var(--accent); }
+}
+.hlpane.nudge { animation: hl-nudge .42s ease-out; }
+@media (prefers-reduced-motion: reduce) { .hlpane.nudge { animation: none; } }
+
 /* 목차와 대칭 — 넓으면 밀고 좁으면 덮는다. */
 @media (min-width: 900px) {
   body { transition: padding-left var(--dur) ease-out,

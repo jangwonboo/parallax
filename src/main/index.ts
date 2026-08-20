@@ -335,6 +335,8 @@ function wireIpc() {
   ipcMain.handle("hl:remove", (_e, groupIds: string[]) =>
     doc?.removeHighlights(groupIds) ?? 0);
   ipcMain.handle("hl:export", (_e, groupIds: string[]) => exportHighlights(groupIds));
+  ipcMain.handle("hl:undo", () => doc?.undoHighlight() ?? false);
+  ipcMain.handle("hl:undoDepth", () => doc?.undoDepth() ?? 0);
 
   ipcMain.handle("dict:lookup", (_e, word: string) => lookup(word));
   ipcMain.handle("export", () => doExport());

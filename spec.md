@@ -258,6 +258,18 @@ CREATE INDEX hl_group ON highlight(group_id);
 - **`schema_version` 은 올리지 않았다.** 표를 더하는 것은 하위호환이고, 올리면 구버전 앱이 「더 새로운 형식입니다」로 파일 자체를 거부한다. 구버전은 이 표를 모른 채 무시한다.
 - `end` 는 SQLite 예약어(`CASE…END`)라 컬럼명이 `end_off` 다. 짝인 `start` 도 같이 바꿔 뒀다.
 
+**되돌리기는 델타로 쌓는다**(`Doc.undoStack`, 99걸음). 스냅숏이 아닌 것은 한 권에
+형광펜이 수백 개면 표 전체를 99벌 드는 셈이라서다. 한 조작이 건드리는 행은 몇 개뿐이다.
+기록은 셋이다 — `inserted`(새로 넣은 id), `deleted`(지운 행 전체), `regrouped`(그룹이
+옮겨진 행의 **옛** group_id). 셋째가 병합 때문에 필요하다: 겹쳐 그으면 겹친 조각이
+지워질 뿐 아니라 그 그룹의 **다른 블록 조각이 새 그룹으로 옮겨진다.** 그것을 안 적으면
+되돌린 뒤 세 단락짜리 형광펜이 두 동강 난 채로 남는다.
+
+되돌릴 때 순서는 `inserted 삭제 → deleted 복원 → regrouped 복원` 이다. 셋째가 맨
+뒤인 것은, 한 조작 안에서 어떤 행이 먼저 옮겨졌다가 나중에 지워졌을 때 둘째가
+되살린 group_id 가 이미 옮겨진 값이기 때문이다. 스택은 메모리에만 있고 문서를
+닫으면 사라진다 — `Doc` 이 갈리면 함께 갈린다.
+
 #### 불변식
 
 읽는 쪽이 기대해도 되는 것들. 쓰는 쪽은 반드시 지켜야 한다.
@@ -508,6 +520,8 @@ highlight: {
   add(frags: { blockId; side; start; end; text }[]): Promise<string>;     // group_id
   remove(groupIds: string[]): Promise<number>;
   export(groupIds: string[]): Promise<{ ok?; count?; canceled?; error? }>;  // Markdown 한 파일
+  undo(): Promise<boolean>;      // 마지막 조작 하나. 되돌릴 것이 없으면 false
+  undoDepth(): Promise<number>;
 }
 ```
 

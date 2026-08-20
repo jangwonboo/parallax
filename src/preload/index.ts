@@ -49,6 +49,9 @@ const api = {
     remove: (groupIds: string[]) => ipcRenderer.invoke("hl:remove", groupIds),
     /** 고른 것을 Markdown 한 파일로. 저장 위치는 main 이 대화상자로 묻는다. */
     export: (groupIds: string[]) => ipcRenderer.invoke("hl:export", groupIds),
+    /** 마지막 조작 하나를 되돌린다(99걸음까지). 되돌릴 것이 없으면 false. */
+    undo: () => ipcRenderer.invoke("hl:undo"),
+    undoDepth: () => ipcRenderer.invoke("hl:undoDepth"),
   },
   export: () => ipcRenderer.invoke("export"),
 

@@ -73,15 +73,24 @@ class DatalabError(RuntimeError):
 
 
 def find_key(explicit: str | None = None) -> str | None:
-    """환경변수 → .env(현재 폴더부터 위로) 순. 자리표시자는 없는 것으로 친다."""
+    """환경변수 → .env(현재 폴더부터 위로) 순. 자리표시자는 없는 것으로 친다.
+
+    .env 위치를 가리키는 환경변수는 VLMPARSE_ENV_FILE 이지만 PKT_ENV_FILE 도
+    같이 본다. 이 모듈을 불러 쓰는 쪽이 pdf2parallax 의 pagecheck.py 이고,
+    그쪽은 PKT_ENV_FILE 로 .env 를 찾는다. 이름이 갈라 있으면 저장소 밖
+    작업 폴더에서 돌렸을 때 열쇠가 .env 에 있어도 「DATALAB_API_KEY 가
+    없습니다」로 죽는다(실측 2026-08-20: the_conquest_of_happiness 을
+    임시 폴더에서 돌리다 여기서 멈췄다).
+    """
     if explicit and explicit != PLACEHOLDER:
         return explicit
     key = os.environ.get("DATALAB_API_KEY", "").strip()
     if not key:
         seen: list[Path] = []
-        env_file = os.environ.get("VLMPARSE_ENV_FILE")
-        if env_file:
-            seen.append(Path(env_file))
+        for var in ("VLMPARSE_ENV_FILE", "PKT_ENV_FILE"):
+            env_file = os.environ.get(var)
+            if env_file:
+                seen.append(Path(env_file))
         here = Path.cwd()
         seen += [here / ".env", *[p / ".env" for p in here.parents]]
         for env in seen:

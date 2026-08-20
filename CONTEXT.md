@@ -480,28 +480,34 @@ pagecheck가 삽입·재구성한 블록은 접미사 ID를 갖는다(`b0052a`).
 
 ---
 
-## 정본 일곱 권 — 2026-08-19 현재
+## 정본 아홉 권 — 2026-08-20 현재
 
 `D:\ebook\__output__` 에 **책당 `.parallax` 한 파일뿐이다.** `.book.json` · `.ko.md` ·
 stale `-wal`/`-shm` 은 2026-08-19 에 사용자가 지웠다. 개조식 판본도 함께 정리돼
-남은 일곱 권은 전부 `-다` 평서형(essay 또는 business)이다.
+아홉 권이 전부 `-다` 평서형(essay 또는 business)이다.
 
 | 책 | 문체 | 블록 | 번역 | 용어 | h1/h2/h3/h4 |
 |---|---|---:|---:|---:|---|
-| `beyond_weird` | essay | 1,120 | 1,047 | 90 | 21 |
-| `no_self_no_problem` | essay | 580 | 550 | 57 | 10 / 41 |
-| `quantum_mechanics_the_theoretical_minimum` | essay | 2,143 | 1,289 | 48 | 14 / 98 / 35 |
-| `rewired` | business | 4,332 | 3,473 | 74 | 27 / 58 / 190 / 304 |
-| `signals` | business | 1,718 | 1,663 | 84 | 7 / 44 / 224 |
-| `the_human_agent_orchestrator` | business | 2,017 | 1,830 | 0 | 14 / 98 / 179 |
-| `the_mind_is_flat` | business | 885 | 803 | 66 | 6 / 13 / 35 |
+| `beyond_weird` | essay | 1,081 | 1,047 | 90 | 21 |
+| `no_self_no_problem` | essay | 559 | 550 | 57 | 10 / 41 |
+| `quantum_mechanics_the_theoretical_minimum` | essay | 2,113 | 1,289 | 48 | 14 / 98 / 35 |
+| `rewired` | business | 3,667 | 3,473 | 74 | 27 / 58 / 190 / 304 |
+| `signals` | business | 1,665 | 1,663 | 84 | 7 / 44 / 224 |
+| `the_conquest_of_happiness` | essay | 336 | 335 | 46 | 6 / 17 |
+| `the_human_agent_orchestrator` | business | 1,961 | 1,830 | 0 | 14 / 98 / 179 |
+| `the_meaning_of_your_life` | essay | 922 | 922 | 0 | 12 / 72 |
+| `the_mind_is_flat` | business | 846 | 803 | 66 | 6 / 13 / 35 |
 
-일곱 권 모두 `integrity_check` 통과. 문체는 종결로 실측했다(`-다` 로 끝나는 문장이
-압도적이고 명사형 종결은 0~5). `.parallax` 스키마에 문체 칸이 없어서 파일만 보고는
-알 수 없다.
+블록 수는 `dropped`(flags&32) 를 뺀 값이다. 아홉 권 모두 `integrity_check` 통과.
+문체는 종결로 실측했다(`-다` 종결이 압도적이고 명사형 종결은 33~97 로 전부 2% 미만).
+`.parallax` 스키마에 문체 칸이 없어서 파일만 보고는 알 수 없다.
 
-**`the_meaning_of_your_life.parallax` 가 이번 정리에서 함께 지워졌다.** 950블록 ·
-번역 950 · essay 로 온전하던 것이라 의도한 삭제가 아닌 듯하다. 휴지통에 있다.
+**`the_meaning_of_your_life.parallax` 는 2026-08-19 정리에서 함께 지워졌다가
+휴지통에서 복원했다.** 950블록 · 번역 950 · essay 로 온전하다.
+
+**`the_conquest_of_happiness` 는 2026-08-20 에 새로 넣었다.** 전면 이미지 스캔이라
+판독을 datalab 으로 돌려야 했다. 아래 「판독은 datalab 고정이다」를 볼 것.
+합계 $9.07(datalab $1.91 · 번역 $3.21 · deslop $3.54 · vision 실패분 $0.39 · 용어집 $0.02).
 
 **개조식 세 권은 `.book.json` 에만 있던 유일본이었다**(`quantum_mechanics` ·
 `signals` · `the_mind_is_flat`). `.parallax` 짝이 없어 함께 사라졌다. 역시 휴지통에
@@ -972,6 +978,59 @@ strength = args.strength or STRENGTH.get(register, "중")
   있어 전부 고쳐야 하고, 컬럼이 없는 기존 파일도 열려야 한다.
 
 `.parallax` 를 정본으로 삼기로 한 이상 정본이 제 문체를 알아야 한다.
+
+
+## 판독은 datalab 고정이다 (2026-08-20, 실측)
+
+《The Conquest of Happiness》(191쪽, 전면 이미지 스캔)를 변환하다 vision 엔진이
+**191쪽 중 119쪽에서 막혔다.** 응답은 매번 같다.
+
+```
+Error code: 400 — invalid_request_error:
+  Output blocked by content filtering policy
+```
+
+모델 문제가 아니다. `PKT_VISION_MODEL` 을 haiku-4-5 에서 sonnet-4-6 으로 바꿔
+같은 쪽을 다시 걸었더니 **똑같은 여섯 쪽이 똑같이 막혔다.** 입력이 전면 이미지
+스캔이라 판독 출력이 원문 전재로 판정되는 것으로 보인다. 재시도로는 풀리지 않고,
+막힌 쪽은 「vision unavailable — layer text kept」로 남아 OCR 텍스트 레이어가
+그대로 통과한다. 즉 검증받지 않은 쪽이 62% 다.
+
+`datalab` 로 같은 책을 다시 걸었다. 결과가 우회책이 아니라 **개선**이었다.
+
+| | h1 | h2 | 상태 |
+|---|---|---|---|
+| vision 후 | 13 | 35 | 장 제목이 두 줄로 쪼개짐(「WHAT MAKES」/「PEOPLE UNHAPPY?」), 본문 문장 일곱이 h2 로 승격 |
+| datalab 후 | 6 | 17 | 2부 + 17장 + 서문 + 표지 + 목차. 인쇄 목차와 정확히 일치 |
+
+비용은 191쪽에 $1.91. vision 이 성공했을 때보다 비싸지만, 사람이 손으로 고칠
+자리를 없앤 값이다.
+
+**그래서 기본값을 바꿨다.** `pagecheck.py --engine` 기본이 `datalab` 이고,
+`run.sh` 도 `ENGINE:-datalab` 이며 `DATALAB_API_KEY` 를 앞에서 요구한다.
+`vision` 과 `tesseract` 는 지우지 않았지만 명시해야 골라지고, docstring 에
+「쓰지 말 것」으로 적어 두었다. `vlmparse` 패키지 쪽은 원래부터 백엔드 등록소에
+datalab 하나뿐이라 손댈 것이 없었다.
+
+### 환경변수 이름이 갈라져 있었다
+
+`pagecheck.py` 는 `PKT_ENV_FILE` 로 `.env` 를 찾는데, 그 안에서 부르는
+`vlmparse.backends.datalab.find_key()` 는 `VLMPARSE_ENV_FILE` 만 봤다. 저장소 밖
+작업 폴더에서 돌리면 `.env` 에 열쇠가 있어도 「DATALAB_API_KEY 가 없습니다」로
+죽는다. vision 이 기본일 때는 드문 불편이었지만 datalab 이 필수가 된 이상 곧바로
+실행 중단이다. `find_key()` 가 **두 이름을 다 보도록** 고쳤다.
+
+고친 자리는 `vendor/vlmparse` 다. `pdf2parallax/scripts/vlmparse` 는 subtree 의
+사본이라 `sync-vlmparse.mjs` 가 매번 덮어쓴다. 사본을 고치면 다음 재포장에서
+조용히 사라진다(이번에 한 번 겪었다).
+
+### 「블록 없는 쪽」 경고는 유실과 병합을 구분하지 못한다
+
+datalab 이 끝나고 「블록이 없는 쪽 29개」가 떴다. 실제 유실은 **0** 이었다.
+쪽 경계 단락을 136건 병합해서 뒤쪽 쪽에 블록이 안 남은 것뿐이다. 확인은
+캐시(`work/.cache/pagecheck/`)의 쪽별 판독문을 8낱말 shingle 로 잘라
+`book.json` 전문에 있는지 세는 방식으로 했다. 191쪽 전부 적중률 90% 이상,
+미달 0. 경고 문구 자리에 이 대조를 넣으면 매번 눈으로 볼 일이 없어진다.
 
 
 ## 열려 있는 것

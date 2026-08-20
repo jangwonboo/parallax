@@ -38,6 +38,18 @@ await cp(SRC, DST, { recursive: true });
 await rm(join(DST, "__pycache__"), { recursive: true, force: true });
 await rm(join(DST, "backends", "__pycache__"), { recursive: true, force: true });
 
+/** 스킬 폴더 아래 모든 `__pycache__` 경로. */
+async function pycacheDirs(root) {
+  const out = [];
+  for (const e of await readdir(root, { withFileTypes: true })) {
+    if (!e.isDirectory()) continue;
+    const full = join(root, e.name);
+    if (e.name === "__pycache__") out.push(full);
+    else out.push(...(await pycacheDirs(full)));
+  }
+  return out;
+}
+
 const files = [];
 for (const d of ["", "backends"]) {
   for (const f of await readdir(join(DST, d))) {
@@ -48,6 +60,14 @@ for (const d of ["", "backends"]) {
 console.log(`vlmparse → ${DST} (${files.length} 파일)`);
 
 if (process.argv.includes("--zip")) {
+  /* 스크립트를 한 번이라도 돌리면 `scripts/__pycache__` 가 생기고, 그대로 싸면
+     정본 zip 이 부풀며 다른 파이썬 버전에서 못 읽는 .pyc 가 배포된다
+     (실측 2026-08-20: 146KB → 212KB, .pyc 세 개가 딸려 들어갔다).
+     위에서 vlmparse 사본만 지우고 있었다 — 스킬 폴더 전체를 훑어야 한다. */
+  for (const dir of await pycacheDirs(SKILL)) {
+    await rm(dir, { recursive: true, force: true });
+  }
+
   /* PowerShell 의 Compress-Archive 는 폴더 이름을 유지한다 — zip 안이
      `pdf2parallax/...` 여야 스킬 로더가 찾는다. */
   await rm(ZIP, { force: true });

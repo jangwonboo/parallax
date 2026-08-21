@@ -260,7 +260,7 @@ CREATE INDEX hl_group ON highlight(group_id);
 
 ```sql
 CREATE TABLE dict_cache (
-  word TEXT PRIMARY KEY, ipa TEXT, defs TEXT NOT NULL, fetched_at INTEGER NOT NULL
+  word TEXT PRIMARY KEY, ipa TEXT, ko TEXT, defs TEXT NOT NULL, fetched_at INTEGER NOT NULL
 );
 ```
 
@@ -275,6 +275,10 @@ CREATE TABLE dict_cache (
 고유명사 거름망이다 — SCOWL 은 전부 소문자라 `napoleon`(과자·화폐)과 이름
 Napoleon 을 구분하지 못하는데, 용어집이 바로 그 책에 나오는 이름들의 목록이다.
 드문 순으로 최대 셋.
+
+**낱말 하나만 그었으면 난이도를 보지 않는다.** 그 낱말이 궁금해서 짚은 것이므로
+어렵든 쉽든 찾고, 그때만 `ko`(영한)와 뜻 둘까지 함께 보여 준다. 여럿 중에 고른
+낱말은 뜻 하나만 — 사전을 통째로 옮기면 목록이 본문보다 길어진다.
 
 **되돌리기는 델타로 쌓는다**(`Doc.undoStack`, 99걸음). 스냅숏이 아닌 것은 한 권에
 형광펜이 수백 개면 표 전체를 99벌 드는 셈이라서다. 한 조작이 건드리는 행은 몇 개뿐이다.

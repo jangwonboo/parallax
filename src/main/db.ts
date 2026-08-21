@@ -62,7 +62,7 @@ CREATE INDEX IF NOT EXISTS hl_group ON highlight(group_id);
 -- 읽으며 막혔던 낱말들이다. 파일 하나로 다니는 것이 이 포맷의 뜻이고, 리더는
 -- 비행기에서도 열려야 한다(같은 이유로 KaTeX 도 동봉한다).
 CREATE TABLE IF NOT EXISTS dict_cache (
-  word TEXT PRIMARY KEY, ipa TEXT, defs TEXT NOT NULL, fetched_at INTEGER NOT NULL
+  word TEXT PRIMARY KEY, ipa TEXT, ko TEXT, defs TEXT NOT NULL, fetched_at INTEGER NOT NULL
 );
 `;
 
@@ -94,6 +94,7 @@ export class Doc {
       if (!has) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${decl}`);
     };
     add("asset", "wfrac", "REAL");
+    add("dict_cache", "ko", "TEXT");   // 영한. 한 낱말만 그었을 때 함께 보여 준다
     /* 표를 더하는 것은 위 DDL 의 `IF NOT EXISTS` 가 옛 파일에도 해 준다 —
        열을 더하는 것과 달리 여기서 따로 할 일이 없다. */
   }
@@ -377,24 +378,24 @@ export class Doc {
   /* ── 사전 캐시 ────────────────────────────────────── */
 
   /** 캐시에 있는 것만. 네트워크는 main 이 따로 나간다. */
-  cachedDefs(words: string[]): Map<string, { ipa: string; defs: { pos: string; text: string }[] }> {
-    const out = new Map<string, { ipa: string; defs: { pos: string; text: string }[] }>();
+  cachedDefs(words: string[]): Map<string, T.WordEntry> {
+    const out = new Map<string, T.WordEntry>();
     if (!words.length) return out;
     const q = words.map(() => "?").join(",");
     for (const r of this.db
-      .prepare(`SELECT word, ipa, defs FROM dict_cache WHERE word IN (${q})`)
-      .all(...words) as { word: string; ipa: string; defs: string }[]) {
+      .prepare(`SELECT word, ipa, ko, defs FROM dict_cache WHERE word IN (${q})`)
+      .all(...words) as { word: string; ipa: string; ko: string; defs: string }[]) {
       try {
-        out.set(r.word, { ipa: r.ipa || "", defs: JSON.parse(r.defs) });
+        out.set(r.word, { ipa: r.ipa || "", ko: r.ko || "", defs: JSON.parse(r.defs) });
       } catch { /* 깨진 캐시는 없는 것으로 친다 */ }
     }
     return out;
   }
 
-  putDefs(word: string, ipa: string, defs: { pos: string; text: string }[]): void {
+  putDefs(word: string, e: T.WordEntry): void {
     this.db
-      .prepare("INSERT OR REPLACE INTO dict_cache (word,ipa,defs,fetched_at) VALUES (?,?,?,?)")
-      .run(word, ipa, JSON.stringify(defs), Date.now());
+      .prepare("INSERT OR REPLACE INTO dict_cache (word,ipa,ko,defs,fetched_at) VALUES (?,?,?,?,?)")
+      .run(word, e.ipa, e.ko, JSON.stringify(e.defs), Date.now());
   }
 
   /** 용어집 표제어 — 어려운 낱말을 고를 때 고유명사 거름망으로 쓴다. */

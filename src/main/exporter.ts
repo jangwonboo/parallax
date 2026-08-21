@@ -13,7 +13,7 @@ const HEAD_LEVEL: Record<string, number | undefined> = { h1: 1, h2: 2, h3: 3 };
 export function renderHighlightMarkdown(
   rows: { groupId: string; page: number | null; text: string }[],
   title: string,
-  gloss: Record<string, { word: string; ipa: string; pos: string; def: string }[]> = {}
+  gloss: Record<string, T.Gloss[]> = {}
 ): string {
   const seen = new Map<string, { page: number | null; parts: string[]; id: string }>();
   for (const h of rows) {
@@ -26,9 +26,11 @@ export function renderHighlightMarkdown(
     const body = g.parts.join(" … ").replace(/\s+/g, " ").trim();
     const head = `- ${body}${g.page ? ` (p.${g.page})` : ""}`;
     /* 어려운 낱말 풀이는 들여쓴 별표 줄로. 화면에서 본 그대로다. */
-    const defs = (gloss[g.id] ?? []).map(
-      (d) => `  * **${d.word}**${d.ipa ? " " + d.ipa : ""}${d.pos ? " *" + d.pos + "*" : ""} — ${d.def}`
-    );
+    const defs = (gloss[g.id] ?? []).map((d) => {
+      const head = `  * **${d.word}**${d.ipa ? " " + d.ipa : ""}${d.ko ? "  " + d.ko : ""}`;
+      const body = d.defs.map((x) => `${x.pos ? "*" + x.pos + "* " : ""}${x.text}`);
+      return [head, ...body.map((x) => "    " + x)].join("\n");
+    });
     return [head, ...defs].join("\n");
   });
   return [`# ${title} — 형광펜`, "", `${seen.size}개`, "", ...items, ""]

@@ -1296,8 +1296,62 @@ function fragmentsFromSelection(sel) {
   return kept;
 }
 
+/* 커서 자리를 계속 적어 둔다. 긁지 않고 Ctrl+A 만 눌렀을 때 어느 낱말을
+   가리킨 것인지는 마우스 위치 말고는 알 길이 없다. */
+let mouseX = -1, mouseY = -1;
+document.addEventListener("mousemove", (e) => { mouseX = e.clientX; mouseY = e.clientY; },
+                          { passive: true });
+
+/* 낱말을 이루는 글자. 한글·영문·숫자에 낱말 안쪽의 아포스트로피와 붙임표까지
+   — `don't`·`well-directed` 를 반으로 자르지 않는다. */
+const WORD_CH = /[\p{L}\p{N}'’-]/u;
+
+/** 화면 좌표 아래의 낱말을 Range 로. 글자가 아니면 null. */
+function wordRangeAt(x, y) {
+  if (x < 0) return null;
+  const pos = document.caretRangeFromPoint
+    ? document.caretRangeFromPoint(x, y)
+    : (() => {
+        const p = document.caretPositionFromPoint?.(x, y);
+        if (!p) return null;
+        const r = document.createRange();
+        r.setStart(p.offsetNode, p.offset);
+        r.collapse(true);
+        return r;
+      })();
+  if (!pos) return null;
+  const node = pos.startContainer;
+  if (node.nodeType !== 3) return null;
+  /* 본문 칸 안이어야 한다 — 목록·툴바 위에서 눌렀다고 그 글자를 긋지 않는다. */
+  if (!node.parentNode?.closest?.(".cell")) return null;
+
+  const t = node.nodeValue || "";
+  let a = pos.startOffset, b = pos.startOffset;
+  /* 낱말 사이 빈칸을 짚었으면 바로 앞 글자를 본다 — 낱말 끝에서 누르는 일이 잦다. */
+  if (a > 0 && !WORD_CH.test(t.charAt(a))) a = b = a - 1;
+  if (!WORD_CH.test(t.charAt(a))) return null;
+  while (a > 0 && WORD_CH.test(t.charAt(a - 1))) a--;
+  while (b < t.length && WORD_CH.test(t.charAt(b))) b++;
+  /* 낱말 가장자리의 아포스트로피·붙임표는 낱말이 아니다. */
+  while (b > a && /['’-]/.test(t.charAt(b - 1))) b--;
+  while (a < b && /['’-]/.test(t.charAt(a))) a++;
+  if (b <= a) return null;
+  const r = document.createRange();
+  r.setStart(node, a);
+  r.setEnd(node, b);
+  return r;
+}
+
 async function addHighlightFromSelection() {
   const sel = getSelection();
+  /* 긁지 않았으면 커서 아래 낱말 하나를 긋는다. 낱말 하나를 보려고 드래그하는
+     것은 손이 많이 가고, 짚기만 하면 되는 편이 읽는 흐름을 덜 끊는다. */
+  if (!sel || sel.isCollapsed || !sel.rangeCount) {
+    const r = wordRangeAt(mouseX, mouseY);
+    if (!r) return;
+    sel.removeAllRanges();
+    sel.addRange(r);
+  }
   const frags = fragmentsFromSelection(sel);
   if (!frags.length) return;
   await api.highlight.add(frags);
@@ -1394,32 +1448,47 @@ function renderHlPane() {
     body.textContent = g.parts.join(" … ");
     main.append(body);
 
-    /* 어려운 낱말 — 그은 글 아래에 별표로 단다. 영영 뜻이다(사용자 지시).
-       원문 칸에만 붙는다. 번역 칸에는 영어 낱말이 없다. */
+    /* 낱말 풀이 — 그은 글 아래에 별표로 단다. 한 낱말을 그었으면 발음기호와
+       영한까지, 여럿 안에서 고른 어려운 낱말이면 영영 뜻 하나만.
+
+       접었다 펴는 서랍(accordion)으로 두지 않았다. 낱말을 짚어 그은 사람에게
+       그 뜻은 **늘 보고 싶은 것**이라, 한 번 더 눌러야 보이는 자리에 두면
+       매번 누르게 된다. 서랍은 평소에 안 볼 것을 감출 때 값을 한다. */
     const gloss = hlGloss.get(g.groupId);
     if (gloss?.length) {
       const box = document.createElement("span");
       box.className = "hl-gloss";
       for (const d of gloss) {
-        const line = document.createElement("span");
-        line.className = "hl-def";
+        const head = document.createElement("span");
+        head.className = "hl-def";
         const w = document.createElement("b");
         w.textContent = d.word;
-        line.append("* ", w);
+        head.append("* ", w);
         if (d.ipa) {
           const ipa = document.createElement("i");
           ipa.className = "ipa";
           ipa.textContent = " " + d.ipa;
-          line.append(ipa);
+          head.append(ipa);
         }
-        if (d.pos) {
-          const pos = document.createElement("i");
-          pos.className = "pos";
-          pos.textContent = " " + d.pos;
-          line.append(pos);
+        if (d.ko) {
+          const ko = document.createElement("i");
+          ko.className = "ko-gloss";     // 한글은 제 서체로 — 영문 스택에 없다
+          ko.textContent = " " + d.ko;
+          head.append(ko);
         }
-        line.append(" — " + d.def);
-        box.appendChild(line);
+        box.appendChild(head);
+        for (const x of d.defs) {
+          const line = document.createElement("span");
+          line.className = "hl-sense";
+          if (x.pos) {
+            const pos = document.createElement("i");
+            pos.className = "pos";
+            pos.textContent = x.pos + " ";
+            line.append(pos);
+          }
+          line.append(x.text);
+          box.appendChild(line);
+        }
       }
       main.append(box);
     }
@@ -1519,13 +1588,24 @@ function flashNoUndo() {
   flashTimer = setTimeout(() => hlPane.classList.remove("nudge"), 450);
 }
 
-/* Alt+H 로 긋고 Alt+U 로 되돌린다. 메뉴 accelerator 와 겹치지 않는다
-   (CmdOrCtrl+O 와 F1 뿐이다). */
+/* Ctrl+A 로 긋고 Alt+U 로 되돌린다(사용자 지시 2026-08-21).
+   Ctrl+A 는 원래 「모두 선택」이었는데 그 메뉴 항목을 뺐다 — 본문이 가상
+   스크롤이라 마운트된 행만 잡혀 애초에 「모두」가 아니었다. */
 document.addEventListener("keydown", (e) => {
-  if (!e.altKey || e.ctrlKey || e.metaKey) return;
   const k = (e.key || "").toLowerCase();
-  if (k === "h") { e.preventDefault(); addHighlightFromSelection(); return; }
-  if (k === "u") { e.preventDefault(); undoHighlight(); }
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && k === "a") {
+    /* 글자를 넣는 칸에서는 손대지 않는다 — API 키 입력에서 Ctrl+A 는 여전히
+       그 칸의 모두 선택이어야 한다. */
+    const el = document.activeElement;
+    if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+    e.preventDefault();
+    addHighlightFromSelection();
+    return;
+  }
+  if (e.altKey && !e.ctrlKey && !e.metaKey && k === "u") {
+    e.preventDefault();
+    undoHighlight();
+  }
 });
 
 /* 우하단 진행 위젯은 2026-08-06 에 뺐다(사용자 지시) — 진행·지출 집계는

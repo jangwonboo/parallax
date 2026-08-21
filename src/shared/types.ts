@@ -107,6 +107,23 @@ export interface Highlight {
   createdAt: number;
 }
 
+/** 사전 한 항목. `.parallax` 의 dict_cache 에 그대로 담긴다. */
+export interface WordEntry {
+  ipa: string;
+  /** 영한. 한 낱말만 그었을 때 함께 보여 준다. */
+  ko: string;
+  defs: { pos: string; text: string }[];
+}
+
+/** 형광펜 밑에 다는 낱말 풀이 한 줄. */
+export interface Gloss {
+  word: string;
+  ipa: string;
+  /** 영한. 한 낱말만 그었을 때만 채운다. */
+  ko: string;
+  defs: { pos: string; text: string }[];
+}
+
 export type Priority = 0 | 1 | 2 | 3;
 export type Mode = "chapter" | "all";
 

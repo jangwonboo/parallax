@@ -170,7 +170,9 @@ function buildMenu() {
         { role: "cut", label: "잘라내기" },
         { role: "copy", label: "복사" },
         { role: "paste", label: "붙여넣기" },
-        { role: "selectAll", label: "모두 선택" },
+        /* 「모두 선택」은 뺐다(2026-08-21). 본문이 가상 스크롤이라 Ctrl+A 는
+           **마운트된 행만** 잡는다 — 눈에 보이는 만큼만 골라 놓고 「모두」라고
+           말하는 셈이라 애초에 거짓이었다. 그 자리는 형광펜이 쓴다. */
       ],
     },
     {
@@ -412,7 +414,9 @@ async function lookup(word: string): Promise<T.DictEntry> {
   /* 뜻은 문서에도 남긴다 — 형광펜 주석이 다음 실행에도, 네트워크 없이도 뜬다.
      spec §7 이 「cache.db 에 넣는다」고 적은 자리인데, 형광펜이 붙으면서
      책과 함께 다녀야 할 이유가 생겼다. */
-  if (entry.defs.length) { try { doc?.putDefs(key, entry.ipa, entry.defs); } catch {} }
+  if (entry.defs.length || entry.koOk) {
+    try { doc?.putDefs(key, { ipa: entry.ipa, ko: entry.ko, defs: entry.defs }); } catch {}
+  }
   return entry;
 }
 
@@ -428,12 +432,16 @@ async function glossHighlights(groupIds: string[]) {
   const texts = doc.groupTexts(groupIds);
   const terms = doc.glossaryTerms();
 
-  const perGroup = new Map<string, string[]>();
+  /* 한 낱말만 그었으면 어렵든 쉽든 찾는다 — 그 낱말이 궁금해서 그은 것이다.
+     여러 낱말이면 그 안에서 어려운 것만 고른다. */
+  const perGroup = new Map<string, { words: string[]; single: boolean }>();
   const need = new Set<string>();
   for (const [g, text] of texts) {
-    const ws = hardWords(text, terms);
+    const one = text.trim().replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "");
+    const single = one.length > 1 && /^[\p{L}'’-]+$/u.test(one);
+    const ws = single ? [one.toLowerCase()] : hardWords(text, terms);
     if (!ws.length) continue;
-    perGroup.set(g, ws);
+    perGroup.set(g, { words: ws, single });
     ws.forEach((w) => need.add(w));
   }
   if (!need.size) return {};
@@ -443,21 +451,28 @@ async function glossHighlights(groupIds: string[]) {
   /* 한 번에 여러 낱말을 받는다. 형광펜 하나에 셋뿐이라 몰려도 몇 개다. */
   await Promise.all(missing.map(async (w) => {
     const e = await lookup(w);
-    if (e.defs.length) have.set(w, { ipa: e.ipa, defs: e.defs });
+    if (e.defs.length || e.koOk) have.set(w, { ipa: e.ipa, ko: e.ko, defs: e.defs });
   }));
 
-  const out: Record<string, { word: string; ipa: string; def: string; pos: string }[]> = {};
-  for (const [g, ws] of perGroup) {
-    const items = ws.flatMap((w) => {
+  const out: Record<string, T.Gloss[]> = {};
+  for (const [g, { words, single }] of perGroup) {
+    const items = words.flatMap((w): T.Gloss[] => {
       const d = have.get(w);
-      if (!d?.defs.length) return [];
-      /* 뜻은 하나만. 사전을 통째로 옮기면 목록이 본문보다 길어진다.
-         다만 표제어를 되풀이하는 뜻은 피한다 — 무료 사전은 「indubitable:
-         That which is indubitable」 같은 것을 첫 뜻으로 내놓는 일이 잦고,
-         그것은 모르는 사람에게 아무것도 알려주지 않는다. */
+      if (!d || (!d.defs.length && !d.ko)) return [];
+      /* 표제어를 되풀이하는 뜻은 피한다 — 무료 사전은 「indubitable: That
+         which is indubitable」 같은 것을 첫 뜻으로 내놓는 일이 잦고, 그것은
+         모르는 사람에게 아무것도 알려주지 않는다. */
       const stem = w.slice(0, Math.max(5, w.length - 3));
-      const pick = d.defs.find((x) => !x.text.toLowerCase().includes(stem)) ?? d.defs[0];
-      return [{ word: w, ipa: d.ipa, pos: pick.pos, def: pick.text }];
+      const ranked = [...d.defs].sort(
+        (a, b) => Number(a.text.toLowerCase().includes(stem)) -
+                  Number(b.text.toLowerCase().includes(stem)));
+      /* 한 낱말을 그었으면 뜻 둘까지, 영한도 함께. 여럿 안에서 고른 낱말은
+         하나만 — 사전을 통째로 옮기면 목록이 본문보다 길어진다. */
+      return [{
+        word: w, ipa: d.ipa,
+        ko: single ? d.ko : "",
+        defs: ranked.slice(0, single ? 2 : 1),
+      }];
     });
     if (items.length) out[g] = items;
   }

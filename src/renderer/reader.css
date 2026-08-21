@@ -888,21 +888,29 @@ body.dragging { user-select: none; cursor: col-resize; }
 }
 .hl-text[data-side="src"] { font-family: var(--face-src); font-weight: var(--weight-src); }
 .hl-text[data-side="ko"]  { font-family: var(--face-ko);  font-weight: var(--weight-ko); }
-/* 어려운 낱말 풀이. 본문에서 오려 온 글이 아니라 우리가 붙인 주석이라
-   UI 서체로 두고, 그은 글보다 작고 흐리게 한다 — 목록을 훑을 때 눈이 먼저
-   가야 할 것은 형광펜 자체다. */
+/* 낱말 풀이. 그은 글과 **같은 서체**로 두고 크기만 2px 줄인다(사용자 지시
+   2026-08-21) — UI 서체로 그리면 본문에서 본 낱말과 모양이 달라, 방금 짚은
+   그 낱말인지 눈이 한 번 더 확인해야 한다. */
 .hl-gloss {
-  display: flex; flex-direction: column; gap: .15rem;
-  margin-top: .35rem; padding-left: .1rem;
-  font-family: var(--font-ui); font-size: var(--ui-size);
-  color: var(--ink-soft); line-height: 1.45;
+  display: flex; flex-direction: column; gap: .12rem;
+  margin-top: .4rem;
+  font-family: var(--face-src); font-weight: var(--weight-src);
+  font-size: calc(var(--size) * .88 - 2px);
+  color: var(--ink-soft); line-height: 1.5;
 }
 /* 둘째 줄부터 별표 자리만큼 들여쓴다. 안 하면 넘친 줄이 별표 밑으로 파고들어
    어디까지가 한 낱말의 풀이인지 안 보인다. */
 .hl-def { padding-left: .85em; text-indent: -.85em; }
 .hl-def b { color: var(--ink); font-weight: 600; }
-.hl-def .ipa, .hl-def .pos { font-style: normal; opacity: .75; }
-.hl-def .pos { font-size: .92em; }
+.hl-def .ipa { font-style: normal; opacity: .8; }
+/* 영한만 한글 서체다 — 영문 스택에 한글 글리프가 없어 기본꼴로 떨어진다. */
+.hl-def .ko-gloss {
+  font-family: var(--face-ko); font-style: normal; color: var(--ink);
+}
+/* 뜻은 낱말 줄보다 한 칸 더 들어간다. 낱말과 뜻이 같은 세로선에 서면
+   별표 목록이 두 겹인지 한 겹인지 읽히지 않는다. */
+.hl-sense { padding-left: 1.6em; text-indent: -.75em; }
+.hl-sense .pos { font-style: italic; opacity: .75; }
 
 .hl-warn { color: var(--ink-soft); font-size: .88em; font-style: italic; }
 /* 번역이 바뀌어 자리를 못 찾은 것. 지우지 않고 흐리게 남긴다 — 사용자가 만든

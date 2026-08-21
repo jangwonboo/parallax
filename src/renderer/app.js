@@ -184,39 +184,29 @@ const MATH_SIGNAL = /[\\^_{}]|[α-ωΑ-Ω∑∫√≈≠≤≥±×÷∞∂]/;
 const MATH_BARE = (s) =>
   s.length <= 16 && (!/\s/.test(s) || !/[A-Za-z]{2,}/.test(s));
 
+/** 글머리표·번호표. 그 폭만큼 둘째 줄부터 물려야 항목이 항목으로 보인다. */
+const MARKER = /^\s*(?:\d{1,2}\s*[.)]|[-–—•·*+]|[a-z]\s*[.)])\s+/;
+
 /**
- * 문자열을 el 에 넣는다. 수식이 섞여 있으면 그 조각만 KaTeX 로 그린다.
- *
- * 넣으면서 **오프셋 지도**(`el.__map`)를 같이 만든다. 형광펜의 좌표는 원문
- * 문자열의 문자 오프셋인데, 화면의 DOM 은 그것과 글자수가 다르다 — KaTeX 가
- * `$x^2$` 다섯 글자를 여러 요소로 그려 놓기 때문이다. 지도가 없으면 원문
- * 좌표에서 DOM 자리를 찾을 방법이 없다.
- *
- * 지도의 항목은 둘 중 하나다.
- *   { node, from, to }            보통 텍스트 — 가운데를 잘라 칠할 수 있다
- *   { node, from, to, atomic }    수식 — 통째로만 칠한다. 안을 쪼개면 마크업이
- *                                 깨지고 식이 사라진다
+ * 수식을 살려 글을 host 에 넣고, 넣은 만큼 오프셋 지도에 적는다.
+ * `base` 는 이 조각이 블록 원문에서 시작하는 자리다.
  */
-function setTextWithMath(el, text) {
-  const map = [];
-  el.__map = map;
-  let at = 0;                       // 원문 문자열에서 지금까지 소비한 길이
-  /* 목록은 블록 하나에 담긴 채 줄로만 나뉘어 온다(`split_inline_lists`).
-     HTML 은 줄바꿈을 접으므로 표시해 두고 CSS 로 살린다 — 항목마다 블록을
-     쪼개면 원문·번역이 항목 단위로 짝지어지는데, 번역이 항목 수를 그대로
-     지킨다는 보장이 없다. */
-  if (text && text.includes("\n")) el.classList.add("list");
-
-  const plain = () => {
-    el.textContent = text || "";
-    if (el.firstChild) map.push({ node: el.firstChild, from: 0, to: (text || "").length });
-  };
-  if (!text || !text.includes("$")) return plain();
-
+function fillInline(host, text, base, map) {
+  if (!text) return;
+  if (!text.includes("$")) {
+    const t = document.createTextNode(text);
+    host.appendChild(t);
+    map.push({ node: t, from: base, to: base + text.length });
+    return;
+  }
   const parts = String(text).split(MATH_SPLIT);
-  if (parts.length === 1) return plain();
-
-  el.textContent = "";
+  if (parts.length === 1) {
+    const t = document.createTextNode(text);
+    host.appendChild(t);
+    map.push({ node: t, from: base, to: base + text.length });
+    return;
+  }
+  let at = base;
   for (const part of parts) {
     if (!part) continue;
     const display = part.startsWith("$$") && part.endsWith("$$") && part.length > 4;
@@ -225,7 +215,7 @@ function setTextWithMath(el, text) {
 
     if (tex === null || !(MATH_SIGNAL.test(tex) || MATH_BARE(tex))) {
       const t = document.createTextNode(part);         // 돈 표기 등 — 글자 그대로
-      el.appendChild(t);
+      host.appendChild(t);
       map.push({ node: t, from: at, to: at + part.length });
       at += part.length;
       continue;
@@ -241,10 +231,69 @@ function setTextWithMath(el, text) {
     } catch {
       span.textContent = part;      // KaTeX 가 아직 안 왔거나 손을 못 대는 것
     }
-    el.appendChild(span);
+    host.appendChild(span);
     map.push({ node: span, from: at, to: at + part.length, atomic: true });
     at += part.length;
   }
+}
+
+/**
+ * 문자열을 el 에 넣는다. 수식이 섞여 있으면 그 조각만 KaTeX 로 그린다.
+ *
+ * **목록은 줄마다 제 상자를 받는다.** 목록은 블록 하나에 담긴 채 줄로만 나뉘어
+ * 온다(`split_inline_lists`) — 항목마다 블록을 쪼개면 원문·번역이 항목 단위로
+ * 짝지어지는데, 번역이 항목 수를 그대로 지킨다는 보장이 없다.
+ *
+ * 예전에는 블록 하나에 `white-space: pre-line` 과 매달린 들여쓰기를 걸었다.
+ * 그런데 **`text-indent` 는 블록의 첫 줄에만 걸린다** — 강제 개행 뒤의 줄은
+ * 「첫 줄」이 아니다. 그래서 항목 1만 물려 나오고 2번부터는 들여쓰기가 없었다
+ * (실측: the_human_agent_orchestrator 의 여섯 교훈 목록). 줄마다 상자를 주면
+ * 각 상자의 첫 줄이 생겨 항목마다 제대로 물린다.
+ *
+ * 물리는 폭은 글머리표를 보고 정한다. 「1. 」과 「10. 」과 「· 」가 다 다르다.
+ *
+ * 넣으면서 **오프셋 지도**(`el.__map`)를 같이 만든다. 형광펜의 좌표는 원문
+ * 문자열의 문자 오프셋인데, 화면의 DOM 은 그것과 글자수가 다르다 — KaTeX 가
+ * `$x^2$` 다섯 글자를 여러 요소로 그려 놓기 때문이다. 지도가 없으면 원문
+ * 좌표에서 DOM 자리를 찾을 방법이 없다.
+ *
+ * 지도의 항목은 둘 중 하나다.
+ *   { node, from, to }            보통 텍스트 — 가운데를 잘라 칠할 수 있다
+ *   { node, from, to, atomic }    수식 — 통째로만 칠한다. 안을 쪼개면 마크업이
+ *                                 깨지고 식이 사라진다
+ * 줄을 가르는 개행 한 글자는 앞 조각의 `to` 에 얹는다. 그래야 지도가 원문을
+ * 빈틈없이 덮어, 여러 줄에 걸친 형광펜의 좌표가 어긋나지 않는다.
+ */
+function setTextWithMath(el, text) {
+  const map = [];
+  el.__map = map;
+  el.textContent = "";
+  const s = text || "";
+
+  if (!s.includes("\n")) {
+    fillInline(el, s, 0, map);
+    return;
+  }
+
+  el.classList.add("list");
+  let at = 0;
+  const lines = s.split("\n");
+  lines.forEach((line, i) => {
+    const li = document.createElement("span");
+    li.className = "li";
+    const m = MARKER.exec(line);
+    if (m) li.style.setProperty("--mark", m[0].length + "ch");
+    fillInline(li, line, at, map);
+    el.appendChild(li);
+    at += line.length;
+    /* 개행을 앞 조각에 얹어 지도를 이어 붙인다. 빈 줄이면 얹을 조각이 없으니
+       빈 상자에 걸린 것으로 친다. */
+    if (i < lines.length - 1) {
+      if (map.length && map[map.length - 1].to === at) map[map.length - 1].to = at + 1;
+      else map.push({ node: li, from: at, to: at + 1, atomic: true });
+      at += 1;
+    }
+  });
 }
 
 /* ── 행 렌더 ─────────────────────────────────────────── */

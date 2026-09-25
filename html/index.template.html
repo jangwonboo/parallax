@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src data: blob:; script-src 'unsafe-inline' 'wasm-unsafe-eval'; connect-src 'none'; form-action 'none'">
+<title>Parallax</title>
+<!-- INLINE_STYLES -->
+<!-- INLINE_KATEX_SCRIPT -->
+<!-- INLINE_SQLITE_SCRIPT -->
+</head>
+<body>
+
+<!-- 툴바에는 늘 쓰는 것만 남긴다. 조판 컨트롤 일곱 개를 한 줄에 늘어놓으면
+     1400px 에서 이미 가로 스크롤이 생겼다. -->
+<header class="bar">
+  <button id="openBtn" class="tool-icon" type="button" aria-label="책 열기" title="책 열기 (Ctrl+O)">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 7V5h7l2 2h10v12h-19zM2.5 10h19"/></svg>
+  </button>
+  <button id="saveBtn" class="tool-icon" type="button" aria-label="책 저장" title="책 저장 (Ctrl+S)" disabled>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h13l3 3v15H4zM7 3v7h10V3M7 21v-8h10v8"/></svg>
+  </button>
+  <button id="saveAsBtn" class="tool-icon" type="button" aria-label="다른 이름으로 저장" title="다른 이름으로 저장" disabled>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h12l3 3v8M3 5v14h11M6 5v5h9V5M7 19h8M18 13v8M15 18l3 3 3-3"/></svg>
+  </button>
+  <button id="tocBtn" class="tool-icon" type="button" aria-label="목차" title="목차" aria-expanded="false">
+    <span class="sprite-icon sprite-toc" aria-hidden="true"></span>
+  </button>
+  <button id="typeBtn" class="tool-icon" type="button" aria-label="조판" title="조판"
+          aria-expanded="false" aria-controls="typePanel">
+    <span class="sprite-icon sprite-type" aria-hidden="true"></span>
+  </button>
+  <button id="bookmarkBtn" class="tool-icon" type="button" aria-label="책갈피" title="책갈피"
+          aria-expanded="false" aria-controls="bookmarkPanel" disabled>
+    <span class="sprite-icon sprite-bookmark" aria-hidden="true"></span>
+  </button>
+  <button id="themeBtn" class="tool-icon" type="button" aria-label="밝게·어둡게 전환"
+          aria-pressed="false" title="밝게·어둡게 전환">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 15.5A8.4 8.4 0 0 1 8.5 4.5 8.5 8.5 0 1 0 19.5 15.5z"/></svg>
+  </button>
+  <button id="hlBtn" class="right" aria-expanded="false" aria-controls="hlPane"
+          aria-label="형광펜 목록" title="형광펜 목록">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 16 10-10 4 4-10 10H5zM12 9l4 4M5 20h15"/></svg>
+    <span id="hlCount" class="badge"></span>
+  </button>
+  <button id="helpBtn" class="tool-icon" type="button" aria-label="사용법" title="사용법 (F1)">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 2-2.5 2-2.5 4M12 17h.01"/></svg>
+  </button>
+</header>
+<aside id="bookmarkPanel" class="bookmark-panel" hidden aria-label="책갈피">
+  <div class="bookmark-head"><strong>책갈피</strong><button id="bookmarkAdd" type="button" disabled>현재 위치 추가</button></div>
+  <div id="bookmarkList" class="bookmark-list"></div>
+</aside>
+
+<div class="panel" id="typePanel" data-open="false" role="group" aria-label="조판">
+  <label class="ctl"><span>배치</span>
+    <select id="layoutSel" aria-label="원문·번역 배치">
+      <option value="lr">원문 왼쪽</option>
+      <option value="rl">번역 왼쪽</option>
+    </select></label>
+  <label class="ctl"><span>영문 글꼴</span>
+    <select id="faceSrc" aria-label="영문 글꼴"></select></label>
+  <label class="ctl"><span>한글 글꼴</span>
+    <select id="faceKo" aria-label="한글 글꼴"></select></label>
+  <label class="ctl"><span>글꼴 크기</span>
+    <input type="range" id="size" min="10" max="24" step="1" aria-label="글꼴 크기">
+    <output id="sizeOut"></output></label>
+  <label class="ctl"><span>줄간격</span>
+    <input type="range" id="lead" min="0" max="4" step="1" aria-label="줄간격">
+    <output id="leadOut"></output></label>
+  <label class="ctl"><span>단락간격</span>
+    <input type="range" id="para" min="0" max="2" step="1" aria-label="단락간격">
+    <output id="paraOut"></output></label>
+  <label class="ctl"><span>본문 폭</span>
+    <input type="range" id="width" min="50" max="100" step="5" aria-label="본문 폭">
+    <output id="widthOut"></output></label>
+  <button id="evenBtn" class="wide" title="좌우 폭을 절반으로">좌우 폭 균등</button>
+</div>
+
+<nav class="toc" id="toc" data-open="false" aria-label="목차"></nav>
+
+<main class="doc linked" id="doc">
+  <!-- 빈 화면에는 진입점 하나만 — 설명문은 다 뺐다(사용자 지시, 2026-08-06) -->
+  <div class="welcome" id="welcome">
+    <button id="openBtn2">Parallax 책 열기</button>
+  </div>
+  <button class="handle" id="handle" hidden aria-label="좌우 폭 조절"
+          role="separator" aria-orientation="vertical"
+          aria-valuemin="20" aria-valuemax="80" aria-valuenow="50"></button>
+</main>
+
+<!-- 형광펜 목록. 항목을 누르면 그 자리로 간다. 「선택」을 누르면 체크박스가
+     떠서 여러 개를 한 번에 지운다 — 그때 항목별 🗑 은 감춘다(두 삭제 경로가
+     같은 화면에 있으면 무엇이 지워지는지 답이 없다). -->
+<aside class="hlpane" id="hlPane" data-open="false" data-picking="false"
+       aria-label="형광펜">
+  <!-- 제목을 달지 않는다. 툴바의 「형광펜」을 눌러 연 패널이라 무엇인지 이미
+       알고, 좁은 칸에서는 한 줄이 아깝다. -->
+  <div class="head">
+    <button id="hlPick" type="button" class="ghost">선택</button>
+    <button id="hlClose" type="button" aria-label="닫기">✕</button>
+  </div>
+  <div class="list" id="hlList"></div>
+  <div class="bulk" id="hlBulk" hidden>
+    <button id="hlAllBtn" type="button" class="ghost">모두</button>
+    <button id="hlDelBtn" type="button" class="icon danger" disabled
+            title="고른 것 지우기" aria-label="지우기"></button>
+  </div>
+</aside>
+
+<aside class="dict" id="dict" data-open="false" role="dialog" aria-label="사전">
+  <div class="head">
+    <span class="word" id="dWord"></span>
+    <span class="ipa" id="dIpa"></span>
+    <button id="dClose" aria-label="닫기">✕</button>
+  </div>
+  <div class="body">
+    <section><h4>영한</h4><div id="dKo" class="ko-gloss spin">…</div></section>
+    <section><h4>영영</h4><div id="dEn" class="spin">…</div></section>
+  </div>
+  <div class="links" id="dLinks"></div>
+</aside>
+
+<!-- 기능 설명(도움말 → 기능 설명, F1). 네이티브 대화상자가 아니라 앱 안
+     패널이다 — 테마를 따라오고 길어도 스크롤된다. -->
+<div class="scrim" id="helpScrim" hidden></div>
+<aside class="help" id="help" data-open="false" role="dialog" aria-modal="true"
+       aria-labelledby="helpTitle" tabindex="-1">
+  <div class="head">
+    <h2 id="helpTitle">기능 설명</h2>
+    <button id="helpClose" aria-label="닫기">✕</button>
+  </div>
+  <div class="body">
+    <section>
+      <h3>읽기</h3>
+      <p>왼쪽이 원문, 오른쪽이 번역이다. 한 단락이 한 행을 이루므로 좌우가 늘 맞물린다.</p>
+      <ul>
+        <li>가운데 <b>손잡이를 끌면</b> 좌우 폭이 바뀐다. 두 번 누르면 절반으로 돌아간다(조판 패널의 「좌우 폭 균등」과 같다).</li>
+        <li>폭은 저장하지 않는다 — 시작은 언제나 반반이다.</li>
+        <li>마우스를 올린 단락은 <b>원문·번역 두 칸이 함께</b> 밝아진다. 어느 것이 짝인지 눈으로 바로 찾으라는 표시다.</li>
+        <li>드래그로 글을 고르면 <b>시작한 쪽 대역만</b> 잡힌다. 반대쪽 열이 끼어들지 않는다.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h3>형광펜</h3>
+      <p>글을 긁고 <b>Ctrl+A</b>. 칠한 것은 오른쪽 목록에 읽은 순서대로 쌓인다.</p>
+      <ul>
+        <li>원문과 번역은 <b>서로를 모른다</b>. 한쪽에 칠해도 반대쪽은 그대로다 — 낱말이 어디에 대응하는지 알 방법이 없기 때문이다. 두 쪽 다 칠하려면 두 번 긋는다.</li>
+        <li><b>긁지 않아도 된다.</b> 낱말 위에 마우스를 올려 두고 <b>Ctrl+A</b> 를 누르면 그 낱말 하나가 칠해진다.</li>
+        <li><b>Alt+U</b> 로 되돌린다. <b>99걸음</b>까지 거슬러 간다 — 긋기·지우기·일괄삭제가 모두 한 걸음이다. 되돌릴 것이 없으면 패널이 한 번 깜빡인다.</li>
+        <li>목록 항목을 누르면 <b>그 자리로 간다</b>. 오른쪽 <b>휴지통</b> 으로 하나씩 지운다.</li>
+        <li>여러 개를 한 번에 지우려면 <b>선택</b>으로 체크하고 휴지통을 누른다.</li>
+        <li>이미 칠한 자리에 <b>겹쳐 그으면 하나로 합쳐진다</b>. 칠 하나에 목록 한 줄이 늘 맞물린다.</li>
+        <li>기존 형광펜의 글이 책 내용과 맞지 않으면 목록에 <b>「번역이 바뀌었습니다」</b> 로 남는다. 지우지는 않는다.</li>
+        <li><b>낱말 하나</b>를 칠하면 그 아래에 <b>발음기호 · 영한 · 영영 뜻</b>이 붙는다. 어렵든 쉽든 붙는다 — 궁금해서 짚은 낱말이기 때문이다.</li>
+        <li>여러 낱말을 칠하면 그중 <b>어려운 낱말</b>을 셋까지 골라 영영 뜻을 단다.</li>
+        <li>책에 저장된 낱말 풀이만 보여 준다. 없는 뜻은 사전 링크에서 확인할 수 있다.</li>
+        <li>형광펜은 <b>저장</b>을 누르면 .parallax 책 안에 들어간다. 저장하지 않은 변경은 상단 저장 아이콘의 점으로 알린다.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h3>목차</h3>
+      <ul>
+        <li>툴바 <b>목차</b> 로 연다. 부 &gt; 장 &gt; 절 세 단계까지 계층으로 접힌다.</li>
+        <li>왼쪽 <b>쐐기</b> 를 눌러 가지를 접고 편다. 처음에는 두 단계까지 보인다.</li>
+        <li>항목을 누르면 그 자리가 <b>툴바 바로 아래</b> 에 선다.</li>
+        <li>읽는 자리가 <b>저절로 강조</b>된다. 접힌 가지 안으로 들어가면 그 가지가 펼쳐진다.</li>
+        <li>넓은 화면에서는 목차가 본문을 밀어낼 뿐 덮지 않는다. 좁으면 겹쳐 뜨고, 항목을 고르면 닫힌다.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h3>조판</h3>
+      <p>툴바 <b>조판</b>. 결과가 본문에 바로 보이므로 슬라이더를 움직이며 맞추면 된다.</p>
+      <ul>
+        <li><b>배치</b> — 원문 왼쪽 · 번역 왼쪽. 번역을 주로 읽고 원문을 곁눈질한다면 번역을 왼쪽에 둔다.</li>
+        <li><b>글꼴</b> — 영문과 한글을 따로 고른다.</li>
+        <li><b>글꼴 크기</b> 10~24pt · <b>줄간격</b> 5단계 · <b>단락간격</b> 3단계 · <b>본문 폭</b>.</li>
+        <li>단락간격을 주면 첫 줄 들여쓰기는 자동으로 빠진다 — 단락을 나누는 장치는 하나면 된다.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h3>사전</h3>
+      <ul>
+        <li>원문의 낱말을 <b>두 번 누르면</b> 책에 저장된 영한·영영 뜻이 뜬다. 없는 낱말은 바깥 사전 링크를 연다.</li>
+        <li>하이픈·아포스트로피가 든 낱말은 통째로 잡힌다(<code>self-aware</code> · <code>don't</code>).</li>
+        <li>밖을 한 번 누르거나 <b>Esc</b>, 또는 스크롤하면 닫힌다.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h3>번역</h3>
+      <ul>
+        <li>.parallax 책에 이미 들어 있는 번역을 읽는다. 번역이 없는 칸은 빈자리로 남는다.</li>
+        <li>새 번역은 기존 Electron 앱이나 번역 파이프라인에서 만든다.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h3>책갈피와 저장</h3>
+      <p><b>책갈피</b>에서 현재 위치를 추가하고, 목록에서 누르면 그 위치로 돌아간다. 책갈피와 형광펜은 <b>저장</b>을 눌러 .parallax 책에 기록한다.</p>
+    </section>
+
+    <section>
+      <h3>단축키</h3>
+      <table class="keys">
+        <tr><td><kbd>Ctrl</kbd>+<kbd>O</kbd></td><td>Parallax 책 열기</td></tr>
+        <tr><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>책 저장</td></tr>
+        <tr><td><kbd>F1</kbd></td><td>이 설명</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>위에 떠 있는 것부터 하나씩 닫기 — 이 설명 → 사전 → 조판 → 목차</td></tr>
+        <tr><td><kbd>Ctrl</kbd>+<kbd>+</kbd> / <kbd>−</kbd></td><td>브라우저 확대·축소</td></tr>
+        <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>손잡이를 고른 뒤 좌우 폭 조절(<kbd>Shift</kbd> 는 5씩, <kbd>Home</kbd> 은 절반)</td></tr>
+      </table>
+    </section>
+
+    <section>
+      <h3>문서</h3>
+      <p>이 HTML 뷰어는 <code>.parallax</code> 책을 직접 열고 저장한다. 기존 JSON 책도 열 수 있다. 이미 들어 있는 번역을 읽으며, 새 번역은 만들지 않는다.</p>
+    </section>
+  </div>
+</aside>
+
+<!-- 추출·페이지 검증 진행. 검증은 몇 분씩 걸리므로 어디까지 갔는지와
+     멈추는 방법이 늘 보여야 한다. -->
+<div class="importing" id="importing" hidden role="status" aria-live="polite">
+  <span class="pulse" aria-hidden="true"></span>
+  <span class="what" id="impWhat"></span>
+  <span class="detail" id="impMsg"></span>
+  <button id="impCancel">취소</button>
+</div>
+
+<!-- INLINE_BROWSER_API -->
+<!-- INLINE_READER_SCRIPT -->
+<!-- INLINE_MENU_SCRIPT -->
+</body>
+</html>

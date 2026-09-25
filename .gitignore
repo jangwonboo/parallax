@@ -1,6 +1,8 @@
 node_modules/
-dist/
+/dist/
 release/
+tts-assets/
+tts.zip
 *.log
 
 # 비밀

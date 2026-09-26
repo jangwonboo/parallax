@@ -1,5 +1,7 @@
 # Parallax — 엔진·데이터 구조 스펙
 
+> 이 문서는 초기 설계와 변경 이력을 보존한다. 현재 앱의 지원 형식과 실행 절차는 [README.md](README.md), [USAGE.md](USAGE.md)를 기준으로 본다. PDF·Markdown 직접 가져오기와 `render.py` 등 아래 일부 설계는 현재 구현에서 제거됐다.
+
 `pdf2parallax` 파이프라인과 병렬 대역 리더를 Electron 앱의 엔진·뷰로 편입하기 위한 설계 문서.
 
 > **이 문서의 위치.** 기존 Parallax 스펙 M3의 엔진·데이터 계층을 확정하고, UI·사용자 흐름은 `pdf2parallax`가 내는 병렬 대역 리더를 그대로 채택한다. M3의 톤앤매너 템플릿 UI는 폐기한다(§0.1).

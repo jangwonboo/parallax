@@ -221,15 +221,14 @@
   </form>
 </dialog>
 
-<!-- 추출·페이지 검증 진행. 검증은 몇 분씩 걸리므로 어디까지 갔는지와
-     멈추는 방법이 늘 보여야 한다. -->
+<!-- 문서 열기 진행 상태. -->
 <div class="importing" id="importing" hidden role="status" aria-live="polite">
   <span class="pulse" aria-hidden="true"></span>
   <span class="what" id="impWhat"></span>
   <span class="detail" id="impMsg"></span>
-  <button id="impCancel">취소</button>
 </div>
 
-<script type="module" src="app.js"></script>
+<script src="reader.js"></script>
+<script src="app.js"></script>
 </body>
 </html>

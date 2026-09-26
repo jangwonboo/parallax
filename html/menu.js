@@ -28,7 +28,7 @@
       jump.type = "button";
       jump.textContent = `${entry.page ? `p.${entry.page} · ` : ""}${entry.label || "그림"}`;
       jump.title = jump.textContent;
-      jump.addEventListener("click", () => { closeBookmarks(); api.gotoBlock(entry.blockId); });
+      jump.addEventListener("click", () => { closeBookmarks(); window.parallaxReader.gotoBlock(entry.blockId); });
       const remove = document.createElement("button");
       remove.type = "button";
       remove.setAttribute("aria-label", "책갈피 지우기");
@@ -45,7 +45,7 @@
     if (bookmarkPanel.hidden) return;
     const width = bookmarkPanel.getBoundingClientRect().width;
     bookmarkPanel.style.left = `${Math.max(14, Math.min(bookmarkButton.getBoundingClientRect().left, innerWidth - width - 14))}px`;
-    bookmarkAdd.disabled = !api.currentBlockId();
+    bookmarkAdd.disabled = !window.parallaxReader.currentBlockId();
     renderBookmarks();
   };
   const save = async (asNew = false) => {
@@ -56,10 +56,10 @@
   document.getElementById("openBtn").addEventListener("click", () => api.doc.open());
   saveButton.addEventListener("click", () => save());
   saveAsButton.addEventListener("click", () => save(true));
-  document.getElementById("helpBtn").addEventListener("click", () => api.showHelp());
+  document.getElementById("helpBtn").addEventListener("click", () => window.parallaxReader.showHelp());
   bookmarkButton.addEventListener("click", toggleBookmarks);
   bookmarkAdd.addEventListener("click", async () => {
-    const id = api.currentBlockId();
+    const id = window.parallaxReader.currentBlockId();
     if (id) await api.bookmark.add(id);
   });
   api.on("bookmark:changed", renderBookmarks);
@@ -83,7 +83,7 @@
     } else if ((event.ctrlKey || event.metaKey) && !event.altKey && key === "s") {
       event.preventDefault(); save();
     } else if (event.key === "F1") {
-      event.preventDefault(); api.showHelp();
+      event.preventDefault(); window.parallaxReader.showHelp();
     } else if (event.key === "Escape" && !bookmarkPanel.hidden) {
       closeBookmarks();
       bookmarkButton.focus();

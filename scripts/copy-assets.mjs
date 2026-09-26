@@ -2,6 +2,8 @@ import { cp, mkdir, readdir, writeFile } from "node:fs/promises";
 
 await mkdir("dist/renderer", { recursive: true });
 await cp("src/renderer", "dist/renderer", { recursive: true });
+await cp("src/reader/reader.js", "dist/renderer/reader.js");
+await cp("src/reader/reader.css", "dist/renderer/reader.css");
 
 /* KaTeX 를 함께 심는다. CSP 가 `script-src 'self'` 라 CDN 에서 못 받는다 —
    그리고 리더는 비행기에서도 열려야 한다.

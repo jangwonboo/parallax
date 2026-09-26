@@ -6,7 +6,9 @@ import { dirname, join, resolve } from "node:path";
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..");
 const read = (name) => readFileSync(join(here, name), "utf8");
+const readShared = (name) => readFileSync(join(root, "src/reader", name), "utf8");
 let html = read("index.template.html");
+const schema = JSON.parse(readShared("../shared/schema-contract.json"));
 let katexCss = readFileSync(join(root, "node_modules/katex/dist/katex.min.css"), "utf8");
 
 // 브라우저가 실제로 쓰는 woff2만 담는다. woff/ttf 폴백을 남기면 용량이 두 배가 된다.
@@ -25,14 +27,16 @@ function put(marker, value) {
 }
 const inlineScript = (source) => `<script>${source.replace(/<\/script/gi, "<\\/script")}</script>`;
 const toolbarIcons = readFileSync(join(here, "toolbar-icons.png")).toString("base64");
-const readerCss = read("reader.css").replace("__TOOLBAR_ICONS__", `data:image/png;base64,${toolbarIcons}`);
+const readerCss = (readShared("reader.css") + "\n" + read("reader.css"))
+  .replace("__TOOLBAR_ICONS__", `data:image/png;base64,${toolbarIcons}`);
 put("<!-- INLINE_STYLES -->", `<style>${katexCss}\n${readerCss}</style>`);
+put("<!-- INLINE_SCHEMA_SCRIPT -->", inlineScript(`window.PARALLAX_SCHEMA = ${JSON.stringify(schema)};`));
 put("<!-- INLINE_KATEX_SCRIPT -->", inlineScript(readFileSync(join(root, "node_modules/katex/dist/katex.min.js"), "utf8")));
 const sqlJs = readFileSync(join(here, "vendor/package/dist/sql-wasm.js"), "utf8");
 const sqlWasm = readFileSync(join(here, "vendor/package/dist/sql-wasm.wasm")).toString("base64");
 put("<!-- INLINE_SQLITE_SCRIPT -->", `${inlineScript(sqlJs)}\n${inlineScript(`window.PARALLAX_SQL_WASM = "${sqlWasm}";`)}`);
 put("<!-- INLINE_BROWSER_API -->", inlineScript(read("browser-api.js")));
-put("<!-- INLINE_READER_SCRIPT -->", inlineScript(read("reader.js")));
+put("<!-- INLINE_READER_SCRIPT -->", inlineScript(readShared("reader.js")));
 put("<!-- INLINE_MENU_SCRIPT -->", inlineScript(read("menu.js")));
 const output = join(here, "parallax.html");
 writeFileSync(output, html, "utf8");

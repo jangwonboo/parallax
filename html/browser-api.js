@@ -44,6 +44,19 @@
     for (let i = 0; i < bytes.length; i += 16384) binary += String.fromCharCode(...bytes.subarray(i, i + 16384));
     return btoa(binary);
   };
+  const lemmas = (word) => {
+    const out = [word];
+    const add = (value) => {
+      if (value.length > 2 && !out.includes(value)) out.push(value);
+    };
+    if (/ies$/.test(word)) add(word.slice(0, -3) + "y");
+    if (/(ses|xes|zes|ches|shes)$/.test(word)) add(word.slice(0, -2));
+    if (/s$/.test(word) && !/ss$/.test(word)) add(word.slice(0, -1));
+    if (/ing$/.test(word)) { add(word.slice(0, -3)); add(word.slice(0, -3) + "e"); }
+    if (/ed$/.test(word)) { add(word.slice(0, -2)); add(word.slice(0, -1)); }
+    if (/ly$/.test(word)) add(word.slice(0, -2));
+    return out.slice(0, 4);
+  };
   function makeOutline(blocks) {
     const headings = blocks.filter((block) => !(block.flags & DROPPED) &&
       /^h[123]$/.test(block.type) && block.src.length <= 120);
@@ -51,9 +64,15 @@
       level: Number(block.type[1]), text: block.src.trim() }));
   }
   function readSqlite(db) {
-    if (!hasTable(db, "doc") || !hasTable(db, "block")) throw new Error("Parallax 문서가 아닙니다.");
+    for (const [table, columns] of Object.entries(window.PARALLAX_SCHEMA.requiredColumns)) {
+      if (!hasTable(db, table) || columns.some((name) => !hasColumn(db, table, name))) {
+        throw new Error(`Parallax 문서의 ${table} 구조가 맞지 않습니다.`);
+      }
+    }
     const doc = sqlRows(db, "SELECT * FROM doc LIMIT 1")[0];
-    if (!doc || doc.schema_version > 2) throw new Error("지원하지 않는 Parallax 문서입니다.");
+    if (!doc || doc.schema_version > window.PARALLAX_SCHEMA.schemaVersion) {
+      throw new Error("지원하지 않는 Parallax 문서입니다.");
+    }
     const blocks = sqlRows(db, "SELECT * FROM block ORDER BY ord");
     const assets = hasTable(db, "asset") ? sqlRows(db,
       `SELECT id,mime,w,h,alt,${hasColumn(db, "asset", "wfrac") ? "wfrac" : "NULL AS wfrac"} FROM asset`) : [];
@@ -337,7 +356,7 @@
   }
 
   const api = {
-    doc: { open: openFile, cancelImport: () => {}, meta: async () => book?.doc || null },
+    doc: { open: openFile, meta: async () => book?.doc || null },
     blocks: {
       count: async () => visible.length,
       range: async (off, lim) => visible.slice(off, off + lim),
@@ -363,6 +382,51 @@
     dict: { lookup: async (word) => {
       const key = word.toLowerCase();
       const row = book?.dictCache?.[key];
+      if (!row) {
+        const currentBook = book;
+        const entry = { word, ipa: "", ko: "", koOk: false, defs: [] };
+        await Promise.all([
+          (async () => {
+            for (const candidate of lemmas(key)) {
+              try {
+                const response = await fetch(
+                  `https://api.datamuse.com/words?sp=${encodeURIComponent(candidate)}&md=d&max=1`,
+                  { signal: AbortSignal.timeout(7000) },
+                );
+                if (!response.ok) continue;
+                const data = await response.json();
+                if (!Array.isArray(data) || data[0]?.word?.toLowerCase() !== candidate || !data[0].defs?.length) continue;
+                entry.word = data[0].word || candidate;
+                for (const definition of data[0].defs.slice(0, 6)) {
+                  const [part, ...text] = definition.split("\t");
+                  entry.defs.push({ pos: part || "", text: text.join("\t").trim() });
+                }
+                return;
+              } catch { /* 연결되지 않으면 다음 표제어를 시도한다. */ }
+            }
+          })(),
+          (async () => {
+            try {
+              const response = await fetch(
+                `https://api.mymemory.translated.net/get?langpair=en|ko&q=${encodeURIComponent(word)}`,
+                { signal: AbortSignal.timeout(7000) },
+              );
+              if (!response.ok) return;
+              const data = await response.json();
+              const translation = data?.responseData?.translatedText?.trim();
+              if (translation && translation.toLowerCase() !== key) {
+                entry.ko = translation;
+                entry.koOk = true;
+              }
+            } catch { /* 연결되지 않으면 팝업의 외부 사전 링크를 쓴다. */ }
+          })(),
+        ]);
+        if (!entry.defs.length && !entry.koOk) entry.error = "사전 조회에 실패했습니다.";
+        else if (currentBook && book === currentBook) currentBook.dictCache[key] = {
+          ipa: entry.ipa, ko: entry.ko, defs: entry.defs,
+        };
+        return entry;
+      }
       return row ? { word, ipa: row.ipa || "", ko: row.ko || "", koOk: !!row.ko, defs: row.defs || [] }
         : { word, ipa: "", ko: "", koOk: false, defs: [], error: "저장된 뜻이 없습니다." };
     } },
@@ -380,6 +444,7 @@
     },
     save, isDirty: () => dirty, hasBook: () => !!book,
   };
+  window.parallaxPlatform = "web";
   window.parallax = api;
   window.addEventListener("beforeunload", (e) => {
     if (!dirty) return;

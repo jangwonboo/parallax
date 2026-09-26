@@ -1,6 +1,8 @@
 /** `.parallax` 포맷 — spec.md §2.2. 스키마를 바꿀 때 여기와 스펙을 함께 고친다. */
 
-export const SCHEMA_VERSION = 2; // v2: asset 테이블 + figure 블록 유형
+import schema from "./schema-contract.json";
+
+export const SCHEMA_VERSION = schema.schemaVersion; // v2: asset 테이블 + figure 블록 유형
 export const ORD_STEP = 1024;
 
 /** block.state */
@@ -159,14 +161,6 @@ export interface PageCheck {
     reasons?: string[];
     notes?: string;
   }[];
-}
-
-export interface ImportProgress {
-  stage: "read" | "extract" | "pagecheck" | "structure" | "write" | "done" | "error";
-  page?: number;
-  of?: number;
-  blocks?: number;
-  message?: string;
 }
 
 export const BODY_TYPES: BlockType[] = ["p", "quote", "footnote", "figcaption"];

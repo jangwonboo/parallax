@@ -1,6 +1,7 @@
-/* Parallax HTML 리더. JSON 경계는 browser-api.js 가 제공한다. */
+/* Electron과 HTML 뷰어가 공유하는 리더. 환경별 I/O는 window.parallax가 제공한다. */
 
 const api = window.parallax;
+const WEB = window.parallaxPlatform === "web";
 const root = document.documentElement;
 const doc = document.getElementById("doc");
 const handle = document.getElementById("handle");
@@ -9,7 +10,10 @@ const tocBtn = document.getElementById("tocBtn");
 const welcome = document.getElementById("welcome");
 
 /* ── 서체 ────────────────────────────────────────────── */
-const SUIT = ["시스템 산세리프", '"Segoe UI","Malgun Gothic",sans-serif', null, 400];
+const SUIT = WEB
+  ? ["시스템 산세리프", '"Segoe UI","Malgun Gothic",sans-serif', null, 400]
+  : ["SUIT Variable", '"SUIT Variable",-apple-system,sans-serif',
+     "https://cdn.jsdelivr.net/gh/sun-typeface/SUIT@2.0.5/fonts/variable/woff2/SUIT-Variable.css", 400];
 
 const FACES_SRC = [SUIT,
   ["Literata (전자책용)", '"Literata",Georgia,serif', "Literata:wght@400;700", 400],
@@ -43,9 +47,17 @@ const FACES_KO = [SUIT,
   ["해바라기", '"Sunflower",sans-serif', "Sunflower:wght@300;500;700", 500]];
 
 const loadedFonts = Object.create(null);
-/* 단일 HTML은 외부 폰트를 요청하지 않는다. 설치된 서체가 있으면 쓰고,
-   없으면 CSS 폴백을 쓴다. */
-function loadWebfont() {}
+function loadWebfont(spec) {
+  if (WEB || !spec || loadedFonts[spec]) return;
+  loadedFonts[spec] = true;
+  const l = document.createElement("link");
+  l.rel = "stylesheet";
+  l.href = /^https?:/.test(spec) ? spec
+    : "https://fonts.googleapis.com/css2?family=" + spec + "&display=swap";
+  document.head.appendChild(l);
+}
+loadWebfont(SUIT[2]);
+loadWebfont("https://use.typekit.net/pps7abe.css");
 
 /* ── 설정 ────────────────────────────────────────────── */
 let settings = {};
@@ -470,6 +482,7 @@ let trMode = "chapter";
 const isChapterHead = (it) => it.type === "h1" || it.type === "h2";
 let scrollIdle = null;
 function queueTranslation() {
+  if (WEB) return;
   clearTimeout(scrollIdle);
   scrollIdle = setTimeout(async () => {
     const vh = window.innerHeight;
@@ -488,7 +501,8 @@ function queueTranslation() {
       if (b.flags & (NO_TRANSLATE | DROPPED)) continue;
       (i >= vf && i <= vt ? p0 : p1).push(b.id);
     }
-    /* 웹판은 이미 들어 있는 번역만 읽는다. */
+    if (p0.length) api.translate.request(p0, 0);
+    if (p1.length) api.translate.request(p1, 1);
   }, 150);
 }
 
@@ -762,8 +776,7 @@ async function gotoBlock(id) {
   }
   updateTocMark();
 }
-api.gotoBlock = gotoBlock;
-api.currentBlockId = () => {
+function currentBlockId() {
   if (!index.length) return null;
   const line = barH() + LANDING_GAP + 1;
   for (let k = firstMounted; k <= lastMounted; k++) {
@@ -771,7 +784,9 @@ api.currentBlockId = () => {
     if (el && el.getBoundingClientRect().bottom > line) return index[k].id;
   }
   return index[Math.max(0, Math.min(index.length - 1, findIndexAt(scrollY - docTop() + line)))]?.id || null;
-};
+}
+window.parallaxReader = { gotoBlock, currentBlockId,
+  showHelp: () => setHelp(help.dataset.open !== "true") };
 
 /* ── 목차 트리 ───────────────────────────────────────
    레벨(h1/h2/h3)은 outline 에 이미 실려 온다 — 수사·제목 병합과 본문 오탐
@@ -1086,7 +1101,7 @@ function setHelp(open) {
 }
 document.getElementById("helpClose").onclick = () => setHelp(false);
 helpScrim.addEventListener("mousedown", () => setHelp(false));
-api.showHelp = () => setHelp(help.dataset.open !== "true");
+api.on("help:show", () => window.parallaxReader.showHelp());
 
 /* Esc — 위에 떠 있는 것부터 하나씩 닫는다. 한 번에 다 닫으면 사전을 닫으려다
    목차까지 잃는다. */
@@ -1422,7 +1437,9 @@ const hlPick = document.getElementById("hlPick");
 const hlBulk = document.getElementById("hlBulk");
 const hlDelBtn = document.getElementById("hlDelBtn");
 const hlAllBtn = document.getElementById("hlAllBtn");
+const hlExpBtn = document.getElementById("hlExpBtn");
 hlDelBtn.appendChild(icon("trash"));
+if (hlExpBtn) hlExpBtn.appendChild(icon("export"));
 
 let hlPicking = false;               // 선택 모드인가
 const hlChecked = new Set();
@@ -1454,7 +1471,8 @@ function renderHlPane() {
   if (!hlGroups.length) {
     const empty = document.createElement("p");
     empty.className = "hl-empty";
-    empty.textContent = "글을 긁고 Ctrl+A 를 누르면 여기 쌓입니다.";
+    empty.textContent = WEB ? "글을 긁고 Ctrl+A 를 누르면 여기 쌓입니다."
+      : "글을 긁고 Alt+H 를 누르면 여기 쌓입니다.";
     hlList.appendChild(empty);
     hlPick.hidden = true;
     return;
@@ -1579,6 +1597,10 @@ function renderHlPane() {
 function syncBulk() {
   const n = hlChecked.size;
   hlDelBtn.disabled = !n;
+  if (hlExpBtn) {
+    hlExpBtn.disabled = !n;
+    hlExpBtn.title = n ? `고른 ${n}개 내보내기` : "고른 것을 파일로 내보내기";
+  }
   /* 개수는 아이콘 옆 글자가 아니라 툴팁으로 — 아이콘 버튼의 폭이 고른 수에
      따라 들썩이면 손이 겨눈 자리가 자꾸 달라진다. */
   hlDelBtn.title = n ? `고른 ${n}개 지우기` : "고른 것 지우기";
@@ -1596,6 +1618,10 @@ hlAllBtn.addEventListener("click", () => {
 hlDelBtn.addEventListener("click", async () => {
   await removeHighlights([...hlChecked]);
   setHlPicking(false);
+});
+if (hlExpBtn) hlExpBtn.addEventListener("click", async () => {
+  const r = await api.highlight.export([...hlChecked]);
+  if (r?.error) alert(r.error);
 });
 /**
  * 마지막 조작을 되돌린다. 무엇을 되돌릴지는 main 이 안다 — 델타를 거기 쌓는다.
@@ -1669,6 +1695,9 @@ api.on("doc:opened", async (e) => {
 
   welcome.remove?.();
   resetDoc();
+  if (window.parallaxElectron?.onDocumentOpened) {
+    window.parallaxElectron.onDocumentOpened(e, doc);
+  }
   /* 창 제목은 늘 앱 이름이다. 문서 제목은 목차 문서에서 확인한다 — 본문 위에
      붙어 따라오던 booktitle 은 자리만 차지해서 없앴다. */
 
@@ -1710,29 +1739,14 @@ api.on("block:updated", async ({ ids }) => {
 const importing = document.getElementById("importing");
 const impWhat = document.getElementById("impWhat");
 const impMsg = document.getElementById("impMsg");
-const IMPORT_STAGE = {
-  read: "여는 중", extract: "추출 중", pagecheck: "페이지 검증 중",
-  structure: "구조 정리 중", write: "저장 중",
-};
-document.getElementById("impCancel").onclick = () => {
-  impWhat.textContent = "멈추는 중";
-  api.doc.cancelImport();
-};
-
 api.on("import:progress", (p) => {
   if (p.stage === "done" || p.stage === "error") {
     importing.hidden = true;
     return;
   }
   importing.hidden = false;
-  impWhat.textContent = IMPORT_STAGE[p.stage] || "여는 중";
-  impMsg.textContent =
-    p.stage === "pagecheck" && p.page && p.of ? `${p.page} / ${p.of}쪽` : p.message || "";
-
-  if (p.stage === "extract" && p.message) {
-    const w = document.getElementById("welcome");
-    if (w) w.querySelector("p").textContent = p.message;
-  }
+  impWhat.textContent = "여는 중";
+  impMsg.textContent = p.message || "";
 });
 
 /* ── 스크롤 ──────────────────────────────────────────── */

@@ -3,11 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy"
-      content="default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src data: blob:; script-src 'unsafe-inline' 'wasm-unsafe-eval'; connect-src 'none'; form-action 'none'">
+      content="default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src data: blob:; script-src 'unsafe-inline' 'wasm-unsafe-eval'; connect-src https://api.datamuse.com https://api.mymemory.translated.net; form-action 'none'">
 <title>Parallax</title>
 <!-- INLINE_STYLES -->
 <!-- INLINE_KATEX_SCRIPT -->
 <!-- INLINE_SQLITE_SCRIPT -->
+<!-- INLINE_SCHEMA_SCRIPT -->
 </head>
 <body>
 
@@ -155,7 +156,7 @@
         <li>기존 형광펜의 글이 책 내용과 맞지 않으면 목록에 <b>「번역이 바뀌었습니다」</b> 로 남는다. 지우지는 않는다.</li>
         <li><b>낱말 하나</b>를 칠하면 그 아래에 <b>발음기호 · 영한 · 영영 뜻</b>이 붙는다. 어렵든 쉽든 붙는다 — 궁금해서 짚은 낱말이기 때문이다.</li>
         <li>여러 낱말을 칠하면 그중 <b>어려운 낱말</b>을 셋까지 골라 영영 뜻을 단다.</li>
-        <li>책에 저장된 낱말 풀이만 보여 준다. 없는 뜻은 사전 링크에서 확인할 수 있다.</li>
+        <li>책에 저장된 낱말 풀이를 먼저 보여 준다. 없는 뜻은 인터넷에서 조회하며, 연결할 수 없으면 사전 링크에서 확인할 수 있다.</li>
         <li>형광펜은 <b>저장</b>을 누르면 .parallax 책 안에 들어간다. 저장하지 않은 변경은 상단 저장 아이콘의 점으로 알린다.</li>
       </ul>
     </section>
@@ -185,7 +186,7 @@
     <section>
       <h3>사전</h3>
       <ul>
-        <li>원문의 낱말을 <b>두 번 누르면</b> 책에 저장된 영한·영영 뜻이 뜬다. 없는 낱말은 바깥 사전 링크를 연다.</li>
+        <li>원문의 낱말을 <b>두 번 누르면</b> 영한·영영 뜻이 뜬다. 책에 없는 뜻은 인터넷에서 조회하며, 연결할 수 없으면 바깥 사전 링크를 이용한다.</li>
         <li>하이픈·아포스트로피가 든 낱말은 통째로 잡힌다(<code>self-aware</code> · <code>don't</code>).</li>
         <li>밖을 한 번 누르거나 <b>Esc</b>, 또는 스크롤하면 닫힌다.</li>
       </ul>
@@ -223,13 +224,11 @@
   </div>
 </aside>
 
-<!-- 추출·페이지 검증 진행. 검증은 몇 분씩 걸리므로 어디까지 갔는지와
-     멈추는 방법이 늘 보여야 한다. -->
+<!-- 문서 열기 진행 상태. -->
 <div class="importing" id="importing" hidden role="status" aria-live="polite">
   <span class="pulse" aria-hidden="true"></span>
   <span class="what" id="impWhat"></span>
   <span class="detail" id="impMsg"></span>
-  <button id="impCancel">취소</button>
 </div>
 
 <!-- INLINE_BROWSER_API -->

@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 2,
+  "requiredColumns": {
+    "doc": ["id", "title", "schema_version"],
+    "block": ["id", "ord", "page", "type", "src", "ko", "flags"]
+  },
+  "optionalColumns": {
+    "asset": ["id", "mime", "data", "wfrac"],
+    "dict_cache": ["ko"]
+  }
+}

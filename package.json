@@ -12,6 +12,7 @@
     "start": "npm run build && electron .",
     "dev": "npm run build && electron . --dev",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node html/build.mjs && node scripts/check-schema.mjs && python -m unittest discover -s html -p test_convert.py",
     "rebuild": "node scripts/rebuild-native.mjs",
     "postinstall": "node scripts/rebuild-native.mjs",
     "dist": "npm run build && node scripts/clean-release.mjs && electron-builder"

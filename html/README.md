@@ -10,7 +10,7 @@
 
 브라우저가 원본 파일 쓰기 권한을 허용하면 같은 파일에 저장한다. 지원되지 않거나 권한이 거절되면 수정본을 내려받으므로 내려받은 `.parallax` 파일을 보관해야 한다. 원본 Electron 앱에서 책을 닫은 뒤 HTML판으로 여는 편이 안전하다.
 
-기존 번역·목차·그림·수식·형광펜을 읽는다. 새 번역과 온라인 사전 조회는 하지 않는다. 책갈피는 `.parallax` 내부 `bookmark` 표에 저장한다. 이전에 만든 `.parallax.json`도 열 수 있다.
+기존 번역·목차·그림·수식·형광펜을 읽는다. 새 번역은 하지 않는다. 원문 낱말을 두 번 누르면 저장된 뜻을 먼저 보여 주고, 없으면 Datamuse 영영 사전과 MyMemory 영한 번역을 온라인으로 조회한다. 인터넷 연결이 없으면 외부 사전 링크를 이용할 수 있다. 책갈피는 `.parallax` 내부 `bookmark` 표에 저장한다. 이전에 만든 `.parallax.json`도 열 수 있다.
 
 상단 목차·조판·책갈피 아이콘은 제공된 이미지에서 가져왔다. Markdown 내보내기와 기타 메뉴는 없다.
 
@@ -30,7 +30,7 @@ python html/translate_book.py "out\book.parallax" --provider anthropic --jobs 4 
 
 ## HTML 다시 만들기
 
-웹판 소스는 `index.template.html`, `reader.css`, `reader.js`, `browser-api.js`, `menu.js`, `toolbar-icons.png`다. 빌드에는 저장소의 `node_modules/katex`와 이 폴더의 `vendor/package/dist/sql-wasm.js`, `sql-wasm.wasm`이 필요하다.
+공용 본문 소스는 `../src/reader/reader.js`와 `../src/reader/reader.css`다. 웹 전용 소스는 `index.template.html`, 이 폴더의 `reader.css`, `browser-api.js`, `menu.js`, `toolbar-icons.png`다. 빌드에는 저장소의 `node_modules/katex`와 이 폴더의 `vendor/package/dist/sql-wasm.js`, `sql-wasm.wasm`이 필요하다.
 
 ```powershell
 node html/build.mjs

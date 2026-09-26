@@ -5,7 +5,6 @@ import { join, basename } from "node:path";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, rmSync } from "node:fs";
 import { Doc } from "./db";
 import { Scheduler } from "./translate/scheduler";
-import * as Imp from "./importers";
 import * as T from "../shared/types";
 import { docTitle, renderMarkdown, renderHighlightMarkdown } from "./exporter";
 import { hardWords } from "./hardwords";
@@ -214,10 +213,8 @@ async function pickAndOpen() {
   await openPath(r.filePaths[0]).catch(reportOpenError);
 }
 
-/** 사용자가 스스로 멈춘 것은 실패가 아니다 — 상자를 띄우지 않는다. */
 function reportOpenError(e: any) {
   emit("import:progress", { stage: "error" });
-  if (e instanceof Imp.Cancelled) return;
   dialog.showErrorBox("열 수 없습니다", e?.message ?? String(e));
 }
 
@@ -287,7 +284,6 @@ function wireIpc() {
   ipcMain.handle("doc:open", async (_e, path?: string) =>
     path ? openPath(path).catch(reportOpenError) : pickAndOpen()
   );
-  ipcMain.handle("doc:cancelImport", () => Imp.cancelImport());
   ipcMain.handle("doc:meta", () => doc?.meta() ?? null);
   ipcMain.handle("blocks:count", () => doc?.count() ?? 0);
   ipcMain.handle("blocks:range", (_e, off: number, lim: number) => doc?.range(off, lim) ?? []);
